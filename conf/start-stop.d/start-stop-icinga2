@@ -1,0 +1,213 @@
+#!/bin/bash
+# Author: Uwe Ebel ( kobmaki @ aol . com )
+# Version: 1.0
+# Project: kobmon-build
+# Info: Start/Stop script for icinga2
+# URL: https://gibhub.com/kobmaki/kobmon-build
+#
+
+if [ $(basename $0) == "start-stop-icinga2" ]; then
+echo "ERROR DO NOT $0 RUN DIRECT USE A PREFIX WRAPPER"
+exit 2
+fi
+
+# try reading lsb functions
+test -r /lib/lsb/init-functions && . /lib/lsb/init-functions
+if [ ! $PROFILEREAD ]; then
+    . /etc/profile
+fi
+
+#
+# helper function for a status
+#
+
+function krc_status ()
+{
+    _krc_status_ret=$?
+    case ${_krc_status_ret} in
+	0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+	   [[ -z $1 ]] ||  echo
+	   ;;
+	1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+	   [[  -z $2 ]] || echo
+	   ;;
+	*)
+	    echo "UNKNOWN $_krc_status_ret "$3
+	    ;;
+    esac
+    return $_krc_status_ret
+}
+
+#
+# show the value of a variable
+#
+function kob_show (){
+    echo -ne ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+# test if an agent is still running
+function is_running()
+{
+    pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG} 2>/dev/null >/dev/null
+    return $?
+}
+
+
+ICINGA2_CONF=${ICINGA2_CONF-/etc/icinga2/icinga2.conf}
+ICINGA2_DAEMON=${ICINGA2_DAEMON-/usr/sbin/icinga2}
+ICINGA2_PROG=$(basename ${ICINGA2_DAEMON})
+ICINGA2_VARS=${ICINGA2_VARS-/var/cache/icinga2/icinga2.vars}
+ICINGA2_ERROR=${ICINGA2_ERROR-/var/log/icinga2/error.log}
+ICINGA2_USER=${ICINGA2_USER-icinga}
+case "$1" in
+
+    start)
+	echo -n "Starting $PROVIDES ... "
+	aPID=$(pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG})
+	if [ "${aPID}" != "" ]; then
+	    krc_status " already running as user ${ICINGA2_USER}  with PID ${aPID}" ""
+	    else 
+     ${ICINGA2_DAEMON} daemon -c ${ICINGA2_CONF} -d -e ${ICINGA2_ERROR} >/dev/null 2>&1 &
+     sleep 1
+     aPID=$(pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG})
+
+       krc_status " as user ${ICINGA2_USER} with PID ${aPID}" "not started, try validate for errors"
+      fi
+     ;;
+
+ stop)
+     echo -n 'Stopping '$PROVIDES' as user '${ICINGA2_USER}' ... '
+     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
+     while is_running; do
+	 kill -TERM $(pgrep -o  -x ${ICINGA2_PROG} -u ${ICINGA2_USER}) 2>/dev/null
+	 echo -n '.'
+	 sleep 1
+     done;
+     
+     krc_status " stopped pid ${aPID}"
+     ;;
+
+ restart)
+     $0 status
+     $0 stop 
+     sleep 1
+     $0 start
+     sleep 1
+     $0 status
+     ;;
+
+ reload)
+     $0 status
+     $0 validate >/dev/null 2>&1
+     if [ $? -ne 0 ]; then
+	 false
+	 krc_status "" "could not reload as validation error"
+     fi
+     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG})
+     kill -HUP ${aPID}
+     sleep 1
+     $0 status
+     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG})
+     echo -n "Reloading ${PROVIDES} "
+     krc_status "reload now with PID ${aPID}"
+     ;;
+ 
+ status)
+     echo -n "Status ${PROVIDES}"
+     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG})
+     krc_status " running as user ${ICINGA2_USER} with PID ${aPID}" " not running as user ${ICINGA2_USER}"
+     ;;
+
+ validate)
+     echo "Validat(ing) ${PROVIDES}"
+     # ${ICINGA2_DAEMON} daemon  --validate -c ${ICINGA2_CONF}
+     $0 icinga2 daemon  --validate -c ${ICINGA2_CONF}
+     ;;
+
+ validate-warning)
+     $0 validate | grep ^warning
+     ;;
+ 
+ variable-list)
+     # echo "Variable-list(ing) ${PROVIDES}"
+     $0 icinga2 variable list
+     ;;
+
+ object-list)
+     # echo "Object-list(ing) ${PROVIDES}"
+     $0 icinga2 object list
+     ;;
+
+ object-list-nocomment)
+     #
+     $0 object-list|grep -v '% = modified ' | grep -v '% declared '
+     ;;
+ 
+ json-var)
+	cat  ${ICINGA2_VARS} | sed s/"},"/"}\n"/g|sort -n
+	;;
+
+ info)
+     echo "Info(ing) ${PROVIDES}"
+     for par in ICINGA2_PROG ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
+	 kob_show ${par}
+     done
+     ;;
+
+ help)
+     echo "$0 [start|stop|restart|status|help|info|check|validate|json-var|conf-one-file|conf-one-file-nocomment]"
+     cat <<EOF
+  start - start the daemon
+  stop - stop the daemon
+  restart - restart the daemon
+  status - status of the daemon
+  info - info output
+  check - checks the environment TDB
+  icinga2 - pass alls follow option to the icinga2 program
+  validate - validates the systax
+  json-var - show the json-var
+  object-list - give the object list via icinga2 object list
+  variable-list - give the variable list via icinga2 variable list
+  conf-one-file - show the config in one file
+  conf-one-file-nocomment - like conf-one-file but without comments
+EOF
+     ;;
+
+ check)
+     echo "Checking ${PROVIDES}"
+     echo "TBD."
+     ;;
+ 
+ icinga2)
+     shift
+     ${ICINGA2_DAEMON} $@
+     exit $?
+     ;;
+
+ conf-one-file)
+     # $0 validate|grep "conf$" |sed s/".*: "//g
+     cat <<EOF
+/***
+ * SHOW ALL CONFIGFILES ON STDTOUT on $(date) as $(id -un)
+ ***/
+EOF
+     for file in `$0 validate|grep "conf$" |sed s/".*: "//g`; do
+	 echo "// next import from ${file}"
+	 cat $file| sed s/^include/"\/\/include"/g
+     done
+	     
+     krc_status 
+     ;;
+
+ conf-one-file-nocomment)
+     $0 conf-one-file|sed s/"^ *"//g|grep -v "^//" | sed -e '/^\/\*/,/*\//d'  -e s/"^\/\/.*"//g|grep .
+     ;;
+ 
+ *)
+     false
+     krc_status "" "$0 unsupported action '$1'. Try $0 help. Usage: $0 [start|stop|restart|help|info|check|validate|object-list|variable-list|json-var|conf-one-file]"
+
+	  ;;
+esac
