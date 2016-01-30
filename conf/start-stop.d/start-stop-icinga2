@@ -11,11 +11,9 @@ echo "ERROR DO NOT $0 RUN DIRECT USE A PREFIX WRAPPER"
 exit 2
 fi
 
+env > /tmp/$(id -un).$1.noprofile.env
 # try reading lsb functions
-test -r /lib/lsb/init-functions && . /lib/lsb/init-functions
-if [ ! $PROFILEREAD ]; then
-    . /etc/profile
-fi
+# test -r /lib/lsb/init-functions && . /lib/lsb/init-functions
 
 #
 # helper function for a status
@@ -55,12 +53,17 @@ function is_running()
 }
 
 
+ICINGA2_USER=${ICINGA2_USER-icinga}
+ICINGA2_PROFILE=${ICINGA2_PROFILE-/etc/profile}
 ICINGA2_CONF=${ICINGA2_CONF-/etc/icinga2/icinga2.conf}
 ICINGA2_DAEMON=${ICINGA2_DAEMON-/usr/sbin/icinga2}
 ICINGA2_PROG=$(basename ${ICINGA2_DAEMON})
 ICINGA2_VARS=${ICINGA2_VARS-/var/cache/icinga2/icinga2.vars}
 ICINGA2_ERROR=${ICINGA2_ERROR-/var/log/icinga2/error.log}
-ICINGA2_USER=${ICINGA2_USER-icinga}
+. ${ICINGA2_PROFILE}
+
+env > /tmp/$(id -un).$1.profile.env
+
 case "$1" in
 
     start)
@@ -151,7 +154,7 @@ case "$1" in
 
  info)
      echo "Info(ing) ${PROVIDES}"
-     for par in ICINGA2_PROG ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
+     for par in ICINGA2_PROG ICINGA2_HOME ICINGA2_PROFILE ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
 	 kob_show ${par}
      done
      ;;
