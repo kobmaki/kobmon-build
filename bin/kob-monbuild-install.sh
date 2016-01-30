@@ -294,8 +294,8 @@ function buildIcinga {
              echo fix html code
              fix-nagios-output.sh -i cgi/*.c
          fi
-	 mkdir -p ${aPREFIX}/nagios || ( echo "ERROR buildICINGA, create dir ${aPREFIX}/nagios" && exit 2 )
-         ./configure --prefix=${aPREFIX}/nagios --with-icinga-user=${aUSER} --with-nagios-user=${aUSER} --with-icinga-group=${aGROUP} --with-command-user=${aUSER} --with-web-user=${aUSER} --with-web-group=${aGROUP} --with-nagios-group=${aGROUP} --with-httpd-conf=${aPREFIX}/nagios/etc --with-cgiurl=/nagios/cgi-bin --with-htmlurl=/nagios   --enable-event-broker --enable-nanosleep --enable-nagiosenv --enable-ssl-X --enable-idoutils --with-icinga-user=${aUSER} --with-icinga-group=${aGROUP}
+	 mkdir -p ${aPREFIX}/icinga || ( echo "ERROR buildICINGA, create dir ${aPREFIX}/icinga" && exit 2 )
+         ./configure --prefix=${aPREFIX}/icinga --with-icinga-user=${aUSER} --with-nagios-user=${aUSER} --with-icinga-group=${aGROUP} --with-command-user=${aUSER} --with-web-user=${aUSER} --with-web-group=${aGROUP} --with-nagios-group=${aGROUP} --with-httpd-conf=${aPREFIX}/icinga/etc --with-cgiurl=/icinga/cgi-bin --with-htmlurl=/icinga   --enable-event-broker --enable-nanosleep --enable-nagiosenv --enable-icingaenv --enable-ssl-X --enable-idoutils --with-icinga-user=${aUSER} --with-icinga-group=${aGROUP}
          make clean
          make icinga cgis contrib modules install install-base install-cgis
 	 echo "MAKING IDOSUITLS"
@@ -333,6 +333,7 @@ function buildIcinga2 {
 	  -DBoost_NO_BOOST_CMAKE=TRUE \
 	  -DICINGA2_UNITY_BUILD=OFF \
 	  -Wno-dev
+
     krc_status "... cmake finished" "... cmake error" || return
     
     krc_status "... make start"
