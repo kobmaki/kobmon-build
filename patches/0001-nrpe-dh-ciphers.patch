@@ -1,0 +1,231 @@
+diff --git a/configure b/configure
+index 6b9795c..281212c 100755
+--- a/configure
++++ b/configure
+@@ -6745,7 +6745,8 @@ _ACEOF
+ 				sslbin=$ssldir/bin/openssl
+ 			fi
+ 			# awk to strip off meta data at bottom of dhparam output
+-			$sslbin dhparam -C 512 | awk '/^-----/ {exit} {print}' > include/dh.h
++			#  bevore 512
++			$sslbin dhparam -C 2048 | awk '/^-----/ {exit} {print}' > include/dh.h
+ 		fi
+ 	fi
+ 
+diff --git a/include/common.h b/include/common.h
+index 42dcfa2..11d02f4 100644
+--- a/include/common.h
++++ b/include/common.h
+@@ -2,7 +2,7 @@
+  *
+  * COMMON.H - NRPE Common Include File
+  * Copyright (c) 1999-2007 Ethan Galstad (nagios@nagios.org)
+- * Last Modified: 09-06-2013
++ * Last Modified: 09-06-2013, see MODIFICATION_DATE
+  *
+  * License:
+  *
+@@ -23,8 +23,8 @@
+ 
+ #include "config.h"
+ 
+-#define PROGRAM_VERSION "2.15"
+-#define MODIFICATION_DATE "09-06-2013"
++#define PROGRAM_VERSION "2.15-kobmaki-patch"
++#define MODIFICATION_DATE "07-07-2015"
+ 
+ #define OK		0
+ #define ERROR		-1
+diff --git a/include/nrpe.h b/include/nrpe.h
+index 63c2d23..24ec50e 100644
+--- a/include/nrpe.h
++++ b/include/nrpe.h
+@@ -62,4 +62,13 @@ void my_connection_sighandler(int);			/* handles timeouts of connection */
+ void sighandler(int);
+ void child_sighandler(int);
+ 
++#ifdef HAVE_SSL
++#ifndef HEADER_DH_H
++#include <openssl/dh.h>
++#endif
++#endif
++
++#ifdef HAVE_SSL
++DH *get_dh();
++#endif
+ 
+diff --git a/include/utils.h b/include/utils.h
+index bf5cce7..7089380 100644
+--- a/include/utils.h
++++ b/include/utils.h
+@@ -55,6 +55,7 @@ char *my_strsep(char **,const char *);
+ 
+ void display_license(void);
+ 
++int my_create_socket(struct addrinfo *ai, const char *bind_address);
+ #endif
+ 
+ 
+diff --git a/src/nrpe.c b/src/nrpe.c
+index 4bc849b..b0a5abc 100644
+--- a/src/nrpe.c
++++ b/src/nrpe.c
+@@ -58,6 +58,9 @@ int use_ssl=FALSE;
+ #define MAX_LISTEN_SOCKS        16
+ #define DEFAULT_LISTEN_QUEUE_SIZE	5
+ 
++#ifdef HAVE_SSL
++#define DEFAULT_CIPHER_LIST "ADH"; // allowed, cipher. orginal value was ADH
++#endif
+ 
+ char    *command_name=NULL;
+ char    *macro_argv[MAX_COMMAND_ARGUMENTS];
+@@ -80,6 +83,11 @@ command *command_list=NULL;
+ char    *nrpe_user=NULL;
+ char    *nrpe_group=NULL;
+ 
++#ifdef HAVE_SSL
++//which cipher_list should we allow, default ADH
++char    *cipher_list=DEFAULT_CIPHER_LIST;
++#endif
++
+ char    *allowed_hosts=NULL;
+ 
+ char    *pid_file=NULL;
+@@ -101,9 +109,11 @@ int     debug=FALSE;
+ int     use_src=FALSE; /* Define parameter for SRC option */
+ int		listen_queue_size=DEFAULT_LISTEN_QUEUE_SIZE;
+ 
++#ifdef HAVE_SSL
+ 
+ void complete_SSL_shutdown( SSL *);
+ 
++#endif
+ 
+ int main(int argc, char **argv){
+ 	int result=OK;
+@@ -111,7 +121,7 @@ int main(int argc, char **argv){
+ 	char buffer[MAX_INPUT_BUFFER];
+ 	char *env_string=NULL;
+ #ifdef HAVE_SSL
+-	DH *dh;
++	DH *dh=NULL;
+ 	char seedfile[FILENAME_MAX];
+ 	int i,c;
+ #endif
+@@ -267,8 +277,8 @@ int main(int argc, char **argv){
+ 		SSL_CTX_set_options(ctx,SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+ 
+ 		/* use anonymous DH ciphers */
+-		SSL_CTX_set_cipher_list(ctx,"ADH");
+-		dh=get_dh512();
++		SSL_CTX_set_cipher_list(ctx,cipher_list);
++		dh=get_dh2048();
+ 		SSL_CTX_set_tmp_dh(ctx,dh);
+ 		DH_free(dh);
+ 		if(debug==TRUE)
+@@ -325,7 +335,7 @@ int main(int argc, char **argv){
+ 
+ 		/* drop privileges */
+ 		drop_privileges(nrpe_user,nrpe_group);
+-
++		
+ 		/* make sure we're not root */
+ 		check_privileges();
+ 
+@@ -594,9 +604,12 @@ int read_config_file(char *filename){
+ 			        }
+ 		        }
+ 
+-		else if(!strcmp(varname,"allow_weak_random_seed"))
++		else if(!strcmp(varname,"allow_weak_random_seed")) {
+ 			allow_weak_random_seed=(atoi(varvalue)==1)?TRUE:FALSE;
+-
++		}
++		else if (!strcmp(varname,"cipher_list")) {
++		  cipher_list=strdup(varvalue);
++		}
+ 		else if(!strcmp(varname,"pid_file"))
+ 			pid_file=strdup(varvalue);
+ 
+@@ -613,7 +626,7 @@ int read_config_file(char *filename){
+ 				/* re-open log using new facility */
+ 				closelog();
+ 				openlog("nrpe",LOG_PID,log_facility); 
+-				}
++			}
+ 			else
+ 				syslog(LOG_WARNING,"Invalid log_facility specified in config file '%s' - Line %d\n",filename,line);
+ 			}
+@@ -894,7 +907,8 @@ void wait_for_connections(void){
+ 	struct sockaddr_in6 *nptr6;
+ 	struct sockaddr_storage addr;
+ 	int rc;
+-	int sock, new_sd;
++	int sock;
++	int new_sd;
+ 	socklen_t addrlen;
+ 	pid_t pid;
+ 	fd_set fdread;
+@@ -1037,9 +1051,13 @@ void wait_for_connections(void){
+ 
+ 					/* is this is a blessed machine? */
+ 					if(allowed_hosts) {
++					  char aENVNRPEREMOTE[MAX_INPUT_BUFFER]="NRPE_REMOTEIP=";
+ 						switch(addr.ss_family) {
+ 						case AF_INET:
+ 							nptr = (struct sockaddr_in *)&addr;
++							
++							strcat(aENVNRPEREMOTE,inet_ntoa(nptr->sin_addr));
++							putenv(aENVNRPEREMOTE);
+ 
+ 							/* log info to syslog facility */
+ 							if(debug==TRUE) {
+@@ -1066,6 +1084,8 @@ void wait_for_connections(void){
+ 								exit(STATE_OK);
+ 								}
+ 							else {
++							  // putenv(aENVNRPEREMOTE);
++							  
+ 								/* log info to syslog facility */
+ 								if(debug==TRUE) {
+ 									syslog(LOG_DEBUG,
+@@ -1374,6 +1394,14 @@ void handle_connection(int sock){
+ 			/* log info to syslog facility */
+ 			if(debug==TRUE)
+ 				syslog(LOG_DEBUG,"Running command: %s",processed_command);
++			// put some call env, like command, addr
++			char aENVNRPECOMMAND[MAX_INPUT_BUFFER]="NRPE_COMMAND=";
++			strcat(aENVNRPECOMMAND,command_name);
++			putenv(aENVNRPECOMMAND);
++			
++			//			char aENVNRPEREMOTE[MAX_INPUT_BUFFER]="NRPE_REMOTEIP=";
++			//			strcat(aENVNRPEREMOTE,command_name);
++			// putenv(aENVNRPECOMMAND);
+ 
+ 			/* run the command */
+ 			strcpy(buffer,"");
+@@ -1815,6 +1843,7 @@ int remove_pid_file(void){
+ 	return OK;
+         }
+ 
++#ifdef HAVE_SSL
+ void complete_SSL_shutdown( SSL *ssl) {
+ 
+ 	/*  
+@@ -1835,6 +1864,7 @@ void complete_SSL_shutdown( SSL *ssl) {
+ 		if( SSL_shutdown( ssl)) break;
+ 	}
+ }
++#endif
+ 
+ /* bail if daemon is running as root */
+ int check_privileges(void){
+@@ -1853,7 +1883,6 @@ int check_privileges(void){
+         }
+ 
+ 
+-
+ /* handle signals (parent process) */
+ void sighandler(int sig){
+ 	static char *sigs[]={"EXIT","HUP","INT","QUIT","ILL","TRAP","ABRT","BUS","FPE","KILL","USR1","SEGV","USR2","PIPE","ALRM","TERM","STKFLT","CHLD","CONT","STOP","TSTP","TTIN","TTOU","URG","XCPU","XFSZ","VTALRM","PROF","WINCH","IO","PWR","UNUSED","ZERR","DEBUG",(char *)NULL};
