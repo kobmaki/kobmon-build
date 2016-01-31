@@ -1,0 +1,365 @@
+#!/bin/bash
+# Author: Uwe Ebel
+# Projekt: kobmon-build
+# Info: start stop script for nrpe daemon
+# Licence: GPL v2
+# 
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+function nrpeExitColor (){
+    # show the exit-code in color and readable
+    local aReturn=$1
+
+# OK is green
+if [ ${aReturn} -eq 0 ]; then
+    echo -n  "$(tput setaf 2 2>/dev/null)OK$(tput sgr0 2>/dev/null)"
+    return ${aReturn}
+fi
+
+# Warning is yello
+if [ $aReturn -eq 1 ]; then
+   echo -n "$(tput setaf 3 2>/dev/null)WARNING$(tput sgr0 2>/dev/null)"
+   return ${aReturn}
+fi
+
+#Critical is red
+if [ $aReturn -eq 2 ]; then
+    echo -n  "$(tput setaf 1 2>/dev/null)CRITICAL$(tput sgr0 2>/dev/null)"
+   return ${aReturn}
+fi
+
+# Peding ist purple
+if [ $aReturn -eq 3 ]; then
+    echo -n  "$(tput setaf 13 2>/dev/null)PENDING$(tput sgr0 2>/dev/null)"
+    return ${aReturn}
+fi
+
+if [ $aReturn -gt 3 ]; then
+    echo -n  "$(tput bold setaf 13 2>/dev/null)UNKNOWN$(tput sgr0 2>/dev/null)"
+    return ${aReturn}
+fi
+
+return ${aReturn}
+}
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+if [[ $0 =~ "start-stop-nrpe" ]]; then
+false
+krc_status "" "ERROR DO NOT $0 RUN DIRECT"
+exit 2
+fi
+
+function is_running()
+{
+    pgrep -o -u ${NRPE_USER} -x $(basename ${NRPE_PROG}) 2>/dev/null >/dev/null
+    return $?
+}
+
+# FIX for unset home
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null
+fi
+
+NRPE_PROG=${NRPE_PROG-/usr/local/nagios/bin/nrpe}
+# path of the nrpe config file
+NRPE_CFG=${NRPE_CFG-/etc/nagios-nrpe/${NRPE_USER}-nrpe.cfg}
+# Which env file should i read
+NRPE_ENV=${NRPE_ENV-$(dirname ${NRPE_CFG} 2>/dev/null)/${NRPE_USER}-env.sh}
+# Default port 5666
+NRPE_PORT=${NRPE_PORT-5666}
+# Default IP v4
+NRPE_IP46=${NRPE_IP46-4}
+NRPE_PROVIDES=${NRPE_PROVIDES-$(basename ${0})}
+
+
+NRPE_VAR=${NRPE_VAR-/var/log/${NRPE_USER}}
+#NRPE_TMP=${NRPE_TMP-${NRPE_VAR}/nrpe.tmp}
+# where are the libexec/plugins installed
+NRPE_LIBEXEC=${NRPE_LIBEXEC-/usr/local/nagios/libexec/}
+# where is the check_nrpe
+NRPE_CHECK_NRPE=${NRPE_CHECK_NRPE-${NRPE_LIBEXEC}/check_nrpe}
+# timeout for check ist 30 seconds
+NRPE_CHECK_TIMEOUT=${NRPE_CHECK_TIMEOUT-30}
+# if we run a check, which host should we use
+NRPE_CHECK_HOST=${NRPE_CHECK_HOST-localhost}
+
+# default check_command is empty
+NRPE_CHECK_COMMAND=""
+
+if [[ -z ${NRPE_USER} || -z ${NRPE_PORT} ]]; then echo "WRONG KONFIGURATION, NRPE_USER or NRPE_PORT empty"; exit 2; fi
+
+function config_check () {
+#        $NRPE_PROG -v ${NRPE_CFG} > /dev/null 2>&1
+	 test -x ${NRPE_PROG} || ( echo "no binary ${NRPE_PROG}" && return 1 )
+        if [[ -f ${NRPE_CFG} && -r ${NRPE_CFG} ]]; then
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${NRPE_USER} -x $(basename ${NRPE_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${NRPE_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|check) 
+        if [ "`whoami`" != "${NRPE_USER}" ]; then
+            su -l  ${NRPE_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${NRPE_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+case "$1" in
+
+    start)
+	test -f ${NRPE_ENV} && test -r ${NRPE_ENV} && . ${NRPE_ENV}
+	test -d ${NRPE_LIBEXEC} && PATH=${NRPE_LIBEXEC}:${PATH}
+
+	
+	echo -n "Starting "${NRPE_PROVIDES}" (nrpe) as user ${NRPE_USER} "
+	aPID=$(pgrep -o -u ${NRPE_USER} -x $(basename ${NRPE_PROG}) 2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	  $NRPE_PROG -d -c ${NRPE_CFG}
+        else
+          echo "- Error in configuration files ${NRPE_CFG}"
+	  false
+          krc_status "" " - please read ${NRPE_VAR}/config.nrpe.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${NRPE_USER} -x $(basename ${NRPE_PROG}) 2>/dev/null)
+	 krc_status  "started as user ${NRPE_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${NRPE_PROVIDES}" (nrpe) as user "${NRPE_USER}" "
+	aPID=$(pgrep -o -u ${NRPE_USER}  -x $(basename ${NRPE_PROG})  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	 while is_running; do
+	        kill -TERM $(pgrep -o  -x $(basename ${NRPE_PROG}) -u ${NRPE_USER}) 2>/dev/null
+		  echo -n '.'
+			   sleep 1
+        done;
+        krc_status "stopped PID ${aPID}" 
+	;;
+    restart)
+	$0 stop
+#        sleep 2
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${NRPE_PROVIDES}" (nrpe)... "
+	aPID=$(pgrep -o -u ${NRPE_USER} -x $(basename ${NRPE_PROG}))
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+     info)
+		echo  "Info nrpe ("${NRPE_PROVIDES}")... "
+		for par in PROVIDES USER GROUP ENV PROG CFG PORT IP46 VAR LIBEXEC CHECK_NRPE CHECK_TIMEOUT CHECK_HOST CHECK_COMMAND; do
+		    kob_showvar NRPE_${par}
+		done
+#		echo "Color Infos"
+#		for k in $(seq 0 4); do
+#		    echo -n "  "
+#		    nrpeExitColor ${k}
+#		    echo
+#		done
+
+		
+		;;
+	check)
+		echo "Checking ${NRPE_PROVIDES} (nrpe)"
+
+		test -f ${NRPE_ENV}
+		krc_status "OK - environment file exist" "Error envfile ${NRPE_ENV} not exist"
+		
+		test -f ${NRPE_PROG}
+		krc_status "OK - programm ${NRPE_PROG} exist and a file" "Error - program ${NRPE_PROG}  do not exist"
+		
+		test -x ${NRPE_PROG}
+		krc_status "OK - program ${NRPE_PROG} executeable" "Error - program ${NRPE_PROG} not executeable"
+
+		test -f ${NRPE_CFG}
+		krc_status "OK - configfile ${NRPE_CFG} exist" "Error - configfile ${NRPE_CFG} not exist"
+		
+		test -f ${NRPE_CHECK_NRPE}
+		krc_status "OK - check_nrpe (${NRPE_CHECK_NRPE}) exist" "Error - no check_nrpe available"
+
+		aRun=""$(${NRPE_CHECK_NRPE} -H ${NRPE_CHECK_HOST} -p ${NRPE_PORT} ${NRPE_IP46} -t 2  2>/dev/null)
+		krc_status "OK - nrpe allow connect to ${NRPE_CHECK_HOST} ${aRun}" "Error - nrpe not acception connection, ${aRun}" "Unknown - nrped not accepting connection"
+
+		# validate conf by emulate 
+		#echo "| ${NRPE_PROG} -c ${NRPE_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${NRPE_CFG} contains errors"
+
+		;;
+        check-one)
+	    [[ "" != "${3}" ]] && NRPE_CHECK_HOST=${3}
+	    aRun="${NRPE_CHECK_NRPE} -H ${NRPE_CHECK_HOST} -p ${NRPE_PORT} ${NRPE_IP46} ${NRPE_CHECK_TIMEOUT}"
+	    [[ "" != "${2}" ]] && aRun=${aRun}" -c "${2}
+	    aRun=""$(${aRun} 2>&1)
+	    #echo "aRUN:"${aRun}
+	    nrpeExitColor $?
+	    echo "|${NRPE_CHECK_HOST}|"${2}"|"${aRun}
+	    ;;
+	
+	check-z)
+	    [[ "" != "${3}" ]] && NRPE_CHECK_HOST=${3}
+	    [[ "" != "${4}" ]] && NRPE_PORT=${4}
+	    # initial values for checks
+	    aConfZ=${2}
+
+	    # initial values for checks
+	    aChecksRuns=0
+	    aChecksOK=0
+	    aChecksWARN=0
+	    aChecksCRIT=0
+	    aChecksOTHER=0
+	    
+	    cat ${aConfZ} | grep '^command\[' | while read l; do
+						    i="`echo $l | sed -e s/'\].*'//g -e s/'.*\['//g`"
+						    aINFO="`echo $l | sed s/.*=INFO://g`"
+						    if [ "${aINFO}" == "${l}" ]; then
+							aINFO=""
+						    fi
+						    
+#						    ${NRPE_CHECK_NRPE} -t 20 -H ${NRPE_CHECK_HOST} -p ${NRPE_PORT} > /tmp/nrpe.check.out.$$ 2>&1
+						    if [[ ! -z $i ]]; then
+							${NRPE_CHECK_NRPE} -t ${NRPE_CHECK_TIMEOUT} -H ${NRPE_CHECK_HOST} -p ${NRPE_PORT} -c $i > /tmp/nrpe.check.out.$$ 2>&1
+							aNrpeReturn=$?
+						    fi
+						    #decho  "aNrpeReturn="${aNrpeReturn}
+						    nrpeExitColor ${aNrpeReturn}
+						    echo -n "|${NRPE_CHECK_HOST}|${i}";
+						    if [ "${aINFO}" != "" ]; then
+							echo -n "|${aINFO}"
+						    fi
+						    echo -n "|";
+						    # output first line, but remove the perfdata
+						    head -1 /tmp/nrpe.check.out.$$ | sed s/"|.*"//g
+						    echo -en "\033[m"
+						    let  "aChecksRuns += 1"
+						    unlink /tmp/nrpe.check.out.$$
+						    # gather stats
+						    let  "aChecksRuns += 1"
+						    case ${aNrpeReturn} in
+							0)
+							    let "aChecksOK += 1"
+							    ;;
+							1)
+							    let "aChecksWARN += 1"
+							    ;;
+							2)
+							    let "aChecksCRIT += 1"
+							    ;;
+
+							*)
+							    let "aChecksOTHER += 1"
+							    ;;
+						    esac
+						    
+						done
+
+	    ;;
+
+	exam*)
+	    echo "Example"
+	    cat <<EOF
+$0 check-one check_hostname
+   run check check_hostname
+
+$0 check-z nrpe.special.cfg ${NRPE_CHECK_HOST} ${NRPE_PORT}
+   run all defined commands in file nrpe.special.cfg against host ${NRPE_CHECK_HOST} on port ${NRPE_PORT}   
+EOF
+
+	    
+	    ;;
+	
+	help)
+	    echo "Helping ${NRPE_PROVIDES} (nrpe)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+start - status of the agent
+info - show info about configuration
+nrped - call daemon 
+check - checks if everything is ok
+check-one - run nrpe checks
+check-z - runs multiple nrpe checks from a file
+example - shows some call example
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|info|nrped|check-one|check-z|example]"
+        exit 1
+        ;;
+esac
+
+
