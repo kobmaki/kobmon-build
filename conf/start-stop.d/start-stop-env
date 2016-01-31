@@ -1,0 +1,121 @@
+#! /bin/bash
+# Author: Uwe Ebel (kobmaki)
+# Project: kobmon-build
+# License: GPL v2
+# Info: checks the env and prepare environment
+
+if [ $(basename $0) == "start-stop-env" ]; then
+echo "ERROR DO NOT $0 RUN DIRECT"
+exit 2
+fi
+
+function krc_status ()
+{
+    _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "UNKNOWN $_krc_status_ret "$3
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+aPATHBASE=${aPATHBASE-/dev/shm}
+aVARBASE=${aVARBASE-/kob/nag/var}
+aWITHPROGRAMM="nagios livestatus"
+NAGIOS_USR=${NAGIOS_USR-nagios}
+
+
+
+case "$1" in
+start|stop|status|check)
+        if [ "`whoami`" != "${NAGIOS_USR}" ]; then
+            exec /bin/su - ${NAGIOS_USR} -c "$0 $@" 2>&1 
+            exit 
+        fi
+        ;;
+*)
+	;;
+esac
+
+aSUBDIRS="checkresults rw spool tmp run cache nagvis nagvis/tmpl nagvis/tmpl/compile nagvis/tmpl/cache session run/icinga2"
+aVARSUBDIRS="cache/php/session"
+# 
+case "$1" in
+start)
+	echo -n "Start ${PROVIDES} "
+	# check if path writeable
+	if [ ! -w ${aPATHBASE}/${NAGIOS_USR} ]; then
+	    mkdir -p ${aPATHBASE}/${NAGIOS_USR} 2>/dev/null || krc_status "OK" "ERROR COULD NOT CREATE PATH ${aPATHBASE}/${NAGIOS_USR}" || exit 2
+	    fi
+
+	# create subdirs
+	for i in ${aSUBDIRS} ; do
+	    if [ ! -w ${aPATHBASE}/${NAGIOS_USR}/$i ]; then
+		mkdir -p ${aPATHBASE}/${NAGIOS_USR}/$i 
+	    fi
+	done
+
+	for i in ${aVARSUBDIRS} ; do
+	    if [ ! -w ${aVARBASE}/${i} ]; then
+		mkdir -p ${aVARBASE}/${i}
+	    fi
+	done
+	
+	krc_status "done" "errors"
+	;;
+
+stop)
+	echo -n "Stop ${PROVIDES} nothing to do "
+	krc_status "OK"
+	;;
+check|status)
+	echo  "Check ${PROVIDES}... "
+	echo "Required initial values"
+	echo " NAGIOS_USR: ${NAGIOS_USR}"
+	echo " aVARBASE: ${aVARBASE}"
+	
+	echo -n "  writeable ${aPATHBASE} "
+	[ -w ${aPATHBASE} ] 
+	krc_status "OK" " not writeable"
+
+       echo -n "  exist ${aPATHBASE}/${NAGIOS_USR} "
+       [ -w ${aPATHBASE}/${NAGIOS_USR} ] 
+       krc_status "OK" " missing"
+
+       for i in ${aSUBDIRS} ; do
+	   echo -n "  writeable "${aPATHBASE}/${NAGIOS_USR}/$i" "
+             [ -w ${aPATHBASE}/${NAGIOS_USR}/$i ]
+	     krc_status "OK" "ERROR"
+          
+        done
+
+       echo " VARBASE: ${aVARBASE}"
+       echo -n "  writeable ${aVARBASE} "
+       [ -w ${aVARBASE} ]
+       krc_status "OK" " not writeable"
+       
+       for i in ${aVARSUBDIRS} ; do
+	   echo -n "  writeable "${aVARBASE}/$i" "
+	   [ -w ${aVARBASE}/${i} ]
+	   krc_status "OK" "ERROR"
+
+       done
+       
+       
+       echo -n "finish tests "
+	krc_status "OK"
+	;;
+
+*)
+	echo "Usage: $0 [start|stop|status|check]"
+	;;
+esac
+
