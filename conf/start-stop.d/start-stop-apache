@@ -1,0 +1,146 @@
+#!/bin/bash
+# Autor: Uwe Ebel (kobmaki @ aol . com)
+# Version: 1.0
+# Project: http://github.com/kobmaki/kobmon-build/
+# Licence: GPLv2
+# 
+
+
+if [ $(basename $0) == "start-stop-apache" ]; then
+echo "ERROR DO NOT $0 RUN DIRECT"
+exit 2
+fi
+
+PROVIDES=${PROVIDES-kobmon-apache}
+HTTPD_CFG=${HTTPD_CFG-/etc/apache/httpd.conf}
+HTTPD_USR=${HTTPD_USR-nagios}
+HTTPD=${HTTPD-/usr/sbin/httpd2}
+HTTPD_VERSION="unknown"
+HTTPD_PROFILE=${HTTPD_PROFILE-/etc/profile}
+
+if [ -x ${HTTPD} ]; then
+    HTTPD_VERSION=""$(${HTTPD} -v  2>/dev/null|grep -i version| sed s/".*version: "//g)
+fi
+
+HTTPD_PORT=${HTTPD_PORT-5680}
+export APACHE_RUN_USER=${HTTPD_USR}
+export APACHE_RUN_GROUP=${HTTPD_USR}
+function krc_status ()
+{
+    _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "UNKNOWN $_krc_status_ret "$3
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function krc_show (){
+    echo -ne ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+if [ "`whoami`" != "${HTTPD_USR}" ]; then
+   /bin/su - ${HTTPD_USR} -c "$0 $@" 2>&1
+   exit
+fi
+
+
+# read profile	
+. ${HTTP_PROFILE} >/dev/null 2>&1
+
+case "$1" in
+
+start|stop|restart|reload|status|info) 
+	if [ "$(whoami)" != "${HTTPD_USR}" ]; then
+	    /bin/su - ${HTTPD_USR} -c "$0 $@" 2>&1 
+	    exit $?
+	fi
+	;;
+*)
+        ;;
+esac
+
+#set -x
+case "$1" in
+start)
+	echo -n "Starting "${PROVIDES}"... "
+	if [ "X$HTTPD" == 'X' ]; then
+	    false
+	    krc_status "" " no httpd binary"
+	    exit $?
+	fi
+
+	${HTTPD} -f ${HTTPD_CFG} -k $1
+	krc_status "started"
+	;;
+
+reload)
+        echo -n "Reloading "${PROVIDES}"... "
+        ${HTTPD} -f ${HTTPD_CFG} -k restart
+        krc_status "reload"
+        ;;
+       
+stop)
+	echo -n "Stopping "${PROVIDES}"... "
+	${HTTPD} -f ${HTTPD_CFG} -k stop 2>/dev/null >/dev/null
+	if [ $? -eq 0 ]; then
+	    krc_status "stopped"
+
+	else
+	    krc_status ".. nothing to do" 
+	fi
+	;;
+
+restart)
+	echo "Restart "${PROVIDES}" via stop start status"
+	$0 status
+	sleep 1
+	$0 stop
+	sleep 2
+	$0 start
+	sleep 2 
+	$0 status
+	;;
+        
+status)
+	echo -n "Status "${PROVIDES}" "
+	#/usr/local/nagios/libexec/check_tcp -H localhost -p ${HTTPD_PORT} >/dev/null
+	lsof -ti :${HTTPD_PORT} >/dev/null
+	if [ $? -eq 0 ]; then
+	    krc_status "running on port ${HTTPD_PORT} with pid $(pgrep -o -u $(id -u ${HTTPD_USR}) -x $(basename ${HTTPD})) as user ${HTTPD_USR}"
+	else
+	    false 
+	    krc_status "" " ${HTTPD} not running as user ${HTTPD_USR}"
+        fi
+	;;
+info)
+        echo "Info PROVIDES:"${PROVIDES}
+        for i in HTTPD HTTPD_VERSION HTTPD_CFG HTTPD_USR HTTPD_PORT HTTPD_PROFILE; do
+            krc_show $i
+        done
+
+        echo "End info ${PROVIDES}"
+        ;;
+
+
+configcheck)
+	echo -n "Configcheck..."${PROVIDES}
+	${HTTPD} -t -f ${HTTPD_CFG} 2> /dev/null  1>/dev/null
+	#$(exit 1)
+	krc_status " Syntax OK" " Syntax wrong, not startable" 
+	;;
+*)
+	echo 'Usage: '$0' {start|stop|restart|status|info|configcheck}'
+	;;
+esac
