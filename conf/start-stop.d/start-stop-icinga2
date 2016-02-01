@@ -11,7 +11,7 @@ echo "ERROR DO NOT $0 RUN DIRECT USE A PREFIX WRAPPER"
 exit 2
 fi
 
-env > /tmp/$(id -un).$1.noprofile.env
+# env > /tmp/$(id -un).$1.noprofile.env
 # try reading lsb functions
 # test -r /lib/lsb/init-functions && . /lib/lsb/init-functions
 
@@ -62,7 +62,7 @@ ICINGA2_VARS=${ICINGA2_VARS-/var/cache/icinga2/icinga2.vars}
 ICINGA2_ERROR=${ICINGA2_ERROR-/var/log/icinga2/error.log}
 . ${ICINGA2_PROFILE}
 
-env > /tmp/$(id -un).$1.profile.env
+#env > /tmp/$(id -un).$1.profile.env
 
 case "$1" in
 
