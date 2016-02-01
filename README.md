@@ -6,6 +6,11 @@ kobmon-build contains some helper scripts to build/compile icinga/icinga2/nagios
 
 This project is maintained by Uwe Ebel (kobmaki) on [https://github.com/kobmaki/kobmon-build/](github).
 
+## Helper
+
+* kob-monbuild-install.sh - build/compile
+* kob-icingaweb2-module-create - creating a frame for icingaweb2 module 
+
 ## Documentation
 
 You found the documention under [doc/](doc/) and start with page [documentation](doc/00-A-documentation.md).
