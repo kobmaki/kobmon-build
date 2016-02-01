@@ -15,3 +15,6 @@ build/*
 # Exclude sandbox directory
 sandbox/*
 
+# Exclude tmp for icingaweb2-module.template
+icingaweb2-module.template/tmp/*
+

@@ -1,0 +1,10 @@
+application/views/scripts/config/index.phtml
+application/clicommands/InfoCommand.php
+application/controllers/ConfigController.php
+application/locale/
+configuration.php
+doc/01-documenation.md
+doc/10-installation.md
+library/
+module.info
+public/

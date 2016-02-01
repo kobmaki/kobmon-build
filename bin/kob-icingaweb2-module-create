@@ -1,0 +1,54 @@
+#!/bin/bash
+# Author: Uwe Ebel (kobmaki @ aol . com )
+# Project: https://github.com/kobmaki/kobmon-build
+# Info: Helper for creating icingaweb2 module
+# Licence: GPL v2
+
+aACTION=$1
+aTEMPLATE=${2-demo}
+aTEMPLATEDIR=$(cd  $(pwd)/$(dirname $0)/../icingaweb2-module.template; pwd) || echo "ERROR no templatedir" && $(exit 2)
+aTEMPLATEFILE=${aTEMPLATEDIR}/template-files.txt
+
+case $1 in
+
+
+create)
+    cd ${aTEMPLATEDIR}
+    tar czf tmp/${aTEMPLATE}.tgz -T template-files.txt
+    cd tmp
+    mkdir ${aTEMPLATE}
+    cd ${aTEMPLATE}
+    pwd
+    tar xf ../${aTEMPLATE}.tgz
+    
+    for i in $(fgrep -l "@@TEMPLATE@@" -r *); do sed -i s/"@@TEMPLATE@@"/${aTEMPLATE}/g $i;done;
+    
+    cd ..
+    tar czf ../${aTEMPLATE}.tgz ${aTEMPLATE}
+    rm -r ${aTEMPLATE}
+    cd ..
+    ls -l $(pwd)/${aTEMPLATE}.tgz
+    echo "finished create."
+    ;;
+
+info)
+    echo "Info"
+    echo "aTEMPLATEFILE:"${aTEMPLATEFILE}
+    echo "aTEMPLATE:"${aTEMPLATE}
+    ;;
+help)
+    echo "create - create new template "$2
+    echo "info - some infos"
+    echo "template-tgz - create template tgz"
+    echo "example - show example"
+    ;;
+
+example)
+    echo "$0 create i2c$(logname)"
+    echo " will create a icingaweb2-module with name i2c$(logname)"
+    echo " the tgz-file will be save in "${aTEMPLATEDIR}"/tmp/i2c$(logname).tgz"
+    ;;
+*)
+    echo "try help"
+    ;;
+esac

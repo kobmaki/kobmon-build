@@ -1,0 +1,5 @@
+Name: @@TEMPLATE@@
+Version: 0.0.1
+Depends: iframe
+Description: Description @@TEMPLATE@@
+
