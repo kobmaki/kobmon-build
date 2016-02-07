@@ -1,14 +1,17 @@
 #!/bin/bash
-
-# Author: Uwe Ebel
+# Author: Uwe Ebel (kobmaki @ aol com)
 # Project: kobmon-build
-# Version: 
-# Licence: GPL
+# Version: 0.9
+# Licence: GPL v2
 # Info: Build icinga/nagios environment
 
 
 MYPWD=$(pwd) 
 #
+
+# a list of programm
+aPROGRAMS=${aPROGRAMS}
+aPROGRAMSAVAILABLE="checkmk icinga2 ICINGA ICINGA2 IDOUTILS mediawiki MEDIAWIKI nagios NAGIOS nagtrap NAGTRAP nagvis NAGVIS NDOUTILS nrpe NRPE SNMPTT"
 
 # some helper scripts
 
@@ -45,6 +48,7 @@ function krc_status ()
 # -e nagios -e mediawiki
 eBuildINFO=
 eBuildNagios=
+eBuildNrpe=
 eBuildIcinga=
 eBuildIcinga2=
 eBuildCheckMK=
@@ -88,6 +92,7 @@ do
     e) 	  case ${OPTARG} in
 	      info) eInfo=true;;
 	      nagios) eBuildNagios=true;;
+	      nrpe) eBuildNrpe=true;;
               icinga) eBuildIcinga=true;;
 	      icinga2) eBuildIcinga2=true;;
               mediawiki) eBuildMediawiki=true;;
@@ -139,6 +144,9 @@ mkdir ${aPREFIX}/nagios/lib 2>/dev/null
 
 aNAGIOSVERSION=${aNAGIOSVERSION-3.2.3}
 aNAGIOSSRCFILE=${aSRCDIR}/nagios-${aNAGIOSVERSION}.tar.gz
+
+aNRPEVERSION=${aNRPEVERSION-2.15}
+aNRPESRCFILE=${aSRCDIR}/nrpe-${aNRPEVERSION}.tar.gz
 
 aICINGAVERSION=${aICINGAVERSION-1.8.2}
 aICINGASRCFILE=${aSRCDIR}/icinga-${aICINGAVERSION}.tar.gz
@@ -195,6 +203,10 @@ echo -n "nagios will be build with version "${aNAGIOSVERSION}". Installed is: "$
 [  ${eBuildNagios} ]
 krc_status "on" "off"
 
+echo -n "nrpe will be build with version "${aNRPEVERSION}". Installed is: "$( ${aPREFIX}/nrpe/bin/nrpe 2>&1|grep . | head -1)" "
+[  ${eBuildNrpe} ]
+krc_status "on" "off"
+
 echo -n "icinga will be build with version "${aICINGAVERSION}". Installed is: "$( ${aPREFIX}/nagios/bin/icinga 2>&1|grep . | head -1)" "
 [ ${eBuildIcinga} ]
 krc_status "on" "off"
@@ -237,27 +249,45 @@ echo " USER: "${aUSER}
 echo " GROUP: "${aGROUP}
 echo " ID: "$(id ${aUSER} )
 krc_status "#### Directories ####"
-echo " PREFIX: "${aPREFIX}/
-echo " SRCDIR: "${aSRCDIR}
-echo " PREFIXCONF: "${aPREFIXCONF}
-echo " BUILDDIR:"${aBUILDDIR}
-echo " SHMDIR:"${aSHMDIR}
-echo " "
-krc_status "#### Check some directories ####"
+echo -n " PREFIX: " && krc_status ${aPREFIX}
+echo -n " SRCDIR: " && krc_status ${aSRCDIR}
+echo -n " PREFIXCONF: " && krc_status ${aPREFIXCONF}
+echo -n " BUILDDIR:" && krc_status ${aBUILDDIR}
+echo -n " SHMDIR:" && krc_status ${aSHMDIR}
 
+
+krc_status "#### Programs to use ####"
+echo -n " PROGROGRAMS: " && krc_status ""${aPROGRAMS}""
+echo
+for k in ${aPROGRAMSAVAILABLE}; do
+    if [[ ${k} =~ " "${aPROGRAMS}" " ]]; then
+    echo -n " Program ${k}: "
+    krc_status "${k}"
+    fi
+done
+
+krc_status "#### Check some directories ####"
 for k in ${aSHMDIR} ${aBUILDDIR}; do
-    echo -n " Directory "${k}": "${k}
-    test -d ${k}
-    krc_status " OK" " directory missing"
+    echo -n " Directory "${k}": "${k}" "
+    test -d ${k} && test -r ${k}
+    krc_status "OK" "directory missing"
 done
 
 echo " PREFIX/var/run: "${aPREFIX}/var/run
 
-for k in nagios apache tomcat icinga icinga2 icingaweb2; do
+for k in nagios apache tomcat icinga icinga2 icingaweb2 ; do
     echo -n " PREFIX/var/log/"${k}": "${aPREFIX}/var/log/${k}
     test -d ${aPREFIX}/var/log/${k}
     krc_status " OK" " directory missing"
 done;
+
+krc_status "### Check some programms ###"
+
+for k in pkg-config make cmake gcc g++ php; do
+    echo -n " ${k}: "
+    aPRG=$(which ${k})
+    krc_status "${aPRG}" "missing"
+done
 
 krc_status "### BUILD INFO END ${date} ###"
 
@@ -265,7 +295,7 @@ krc_status "### BUILD INFO END ${date} ###"
 
 #
 # build and intall nagios
-#
+
 function buildNagios {
 	 echo "### STARTING BUILD "${aNAGIOSSRCFILE}
 	 cd ${aBUILDDIR}
@@ -282,9 +312,22 @@ function buildNagios {
 	 echo "### END BUILD "${aNAGIOSSRCFILE}
 }
 
+#
+# build and install nrpe
+#
+function buildNrpe {
+    krc_status "### STARTING BUILD "${aNRPESRCFILE}
+    cd ${aBUILDDIR}
+    tar xzf ${aNRPESRCFILE} || return 2
+    aNRPEDIR=$(tar tf ${aNRPESRCFILE} |grep "/"|head -1 | sed s/"\/.*"//g)
+    cd ${aNRPEDIR} || $(echo missing dir ${aNRPEDIR} && exit 2)
+    ./configure --prefix=${aPREFIX}/nrpe --with-nrpe-port=5666 --with-nrpe-user=${aUSER} --with-nrpe-group=${aGROUP} --with-nagios-user=${aUSER} --with-nagios-group=${aGROUP} --with-ssl-lib=$(pkg-config openssl --variable=libdir)
+    make install
+    krc_status "### END BUILD "${aNRPESRCFILE} "### END BUILD WITH ERROR "${aNRPESRCFILE}
+}
 
 function buildIcinga {
-         echo "### STARTING BUILD "${aICINGASRCFILE}
+         krc_status "### STARTING BUILD "${aICINGASRCFILE}
          cd ${aBUILDDIR}
          tar xzf ${aICINGASRCFILE}
 	 aICINGADIR=$(tar tf ${aICINGASRCFILE} |grep "/"|head -1 | sed s/"\/.*"//g)
@@ -298,18 +341,18 @@ function buildIcinga {
          ./configure --prefix=${aPREFIX}/icinga --with-icinga-user=${aUSER} --with-nagios-user=${aUSER} --with-icinga-group=${aGROUP} --with-command-user=${aUSER} --with-web-user=${aUSER} --with-web-group=${aGROUP} --with-nagios-group=${aGROUP} --with-httpd-conf=${aPREFIX}/icinga/etc --with-cgiurl=/icinga/cgi-bin --with-htmlurl=/icinga   --enable-event-broker --enable-nanosleep --enable-nagiosenv --enable-icingaenv --enable-ssl-X --enable-idoutils --with-icinga-user=${aUSER} --with-icinga-group=${aGROUP}
          make clean
          make icinga cgis contrib modules install install-base install-cgis
-	 echo "MAKING IDOSUITLS"
+	 krc_status "MAKING IDOSUITLS"
 	 cd ${aBUILDDIR}/${aICINGADIR}/module/idoutils
 	 make
 	 make install
 	 cd ../../
-         echo "### END BUILD "${aICINGASRCFILE}
+         krc_status "### END BUILD "${aICINGASRCFILE}
 }
 
 
 function buildIcinga2 {
     krc_status "#### STARTING BUILD "${aICINGA2SRCFILE}
-    echo "... extract source"
+    krc_status "... extract source"
     cd ${aBUILDDIR}
     tar xzf ${aICINGA2SRCFILE} || return 2
     aICINGA2DIR=$(tar tf ${aICINGA2SRCFILE} |grep "/"|head -1 | sed s/"\/.*"//g)
@@ -345,7 +388,7 @@ function buildIcinga2 {
     make install
     krc_status "... install finished " "... install error" || return
     
-    echo "### END BUILD "${aICINGA2SRCFILE}
+    krc_status "### END BUILD "${aICINGA2SRCFILE}
 }
 
 function buildLivestatus {
@@ -557,6 +600,7 @@ fi
 
 [ ${eBuildINFO} ] && buildINFO
 [ ${eBuildNagios} ] && buildNagios
+[ ${eBuildNrpe} ] && buildNrpe
 [ ${eBuildIcinga} ] && buildIcinga
 [ ${eBuildIcinga2} ] && buildIcinga2
 [ ${eBuildCheckmk} ] && buildCheckMK
