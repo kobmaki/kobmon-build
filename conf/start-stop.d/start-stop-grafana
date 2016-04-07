@@ -1,0 +1,300 @@
+#!/bin/bash
+# Author: Uwe Ebel
+# Projekt: kobmon-build
+# Info: start stop script for grafana
+# Licence: GPL v2
+# 
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+
+
+if [[ $0 =~ "start-stop-grafana" ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECT"
+exit 2
+fi
+
+function is_running()
+{
+    pgrep -o -u ${GRAFANA_USER} -x $(basename ${GRAFANA_PROG}) 2>/dev/null >/dev/null
+    return $?
+}
+
+# FIX for unset home
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null
+fi
+
+# prefix for grafana
+GRAFANA_PREFIX=${GRAFANA_PREFIX-/usr/local/grafana}
+
+# DATA
+GRAFANA_DATA=${GRAFANA_DATA-${GRAFANA_PREFIX}/data}
+# where is the grafana binary?
+GRAFANA_PROG=${GRAFANA_PROG-${GRAFANA_PREFIX}/bin/grafana-server}
+
+# path of the grafana config file
+GRAFANA_CFG=${GRAFANA_CFG-${GRAFANA_PREFIX}/conf/defaults.ini}
+
+# Which env file should be read
+GRAFANA_ENV=${GRAFANA_ENV-$(dirname ${GRAFANA_CFG} 2>/dev/null)/${GRAFANA_USER}-env.sh}
+
+# Default port 3000
+GRAFANA_PORT=${GRAFANA_PORT-3000}
+
+# Default IP v4
+GRAFANA_IP46=${GRAFANA_IP46-4}
+
+# set the provides for start/stop
+GRAFANA_PROVIDES=${GRAFANA_PROVIDES-$(basename ${0})}
+
+GRAFANA_VAR=${GRAFANA_VAR-${GRAFANA_DATA}/log}
+#GRAFANA_TMP=${GRAFANA_TMP-${GRAFANA_VAR}/grafana.tmp}
+
+
+# where is the check_grafana
+GRAFANA_CHECK_GRAFANA=${GRAFANA_CHECK_GRAFANA-${GRAFANA_LIBEXEC}/check_grafana}
+
+# if we run a check, which host should we use
+GRAFANA_CHECK_HOST=${GRAFANA_CHECK_HOST-localhost}
+
+# default check_command is empty
+# if you run this check against the running grafana daemon you get the version of the daemon
+GRAFANA_CHECK_COMMAND=""
+
+
+if [[ -z ${GRAFANA_USER} || -z ${GRAFANA_PORT} ]]; then echo "WRONG KONFIGURATION, GRAFANA_USER or GRAFANA_PORT empty"; exit 2; fi
+
+function config_check () {
+#        $GRAFANA_PROG -v ${GRAFANA_CFG} > /dev/null 2>&1
+	 test -x ${GRAFANA_PROG} || ( echo "no binary ${GRAFANA_PROG}" && return 1 )
+        if [[ -f ${GRAFANA_CFG} && -r ${GRAFANA_CFG} ]]; then
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${GRAFANA_USER} -x $(basename ${GRAFANA_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${GRAFANA_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|validate) 
+        if [ "`whoami`" != "${GRAFANA_USER}" ]; then
+            su -l  ${GRAFANA_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${GRAFANA_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+case "$1" in
+
+    start)
+	test -f ${GRAFANA_ENV} && test -r ${GRAFANA_ENV} && . ${GRAFANA_ENV}
+	test -d ${GRAFANA_LIBEXEC} && PATH=${GRAFANA_LIBEXEC}:${PATH}
+
+	
+	echo -n "Starting "${GRAFANA_PROVIDES}" (grafana) as user ${GRAFANA_USER} "
+	aPID=$(pgrep -o -u ${GRAFANA_USER} -x $(basename ${GRAFANA_PROG}) 2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	  $GRAFANA_PROG -config ${GRAFANA_CFG} -homepath ${GRAFANA_PREFIX} > ${GRAFANA_VAR}/start-stop.log 2>&1 &
+        else
+          echo "- Error in configuration files ${GRAFANA_CFG}"
+	  false
+          krc_status "" " - please read ${GRAFANA_VAR}/config.grafana.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${GRAFANA_USER} -x $(basename ${GRAFANA_PROG}) 2>/dev/null)
+	 krc_status  "started as user ${GRAFANA_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${GRAFANA_PROVIDES}" (grafana) as user "${GRAFANA_USER}" "
+	aPID=$(pgrep -o -u ${GRAFANA_USER}  -x $(basename ${GRAFANA_PROG})  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	
+	 while is_running; do
+	        kill -TERM $(pgrep -o  -x $(basename ${GRAFANA_PROG}) -u ${GRAFANA_USER}) 2>/dev/null
+		  echo -n '.'
+			   sleep 1
+        done;
+         krc_status " stopped PID ${aPID}"
+	 
+	;;
+    restart)
+	$0 stop
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${GRAFANA_PROVIDES}" (grafana)... "
+	aPID=$(pgrep -o -u ${GRAFANA_USER} -x $(basename ${GRAFANA_PROG}))
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+    check)
+	echo "Check grafana ("${GRAFANA_PROVIDES}")... "
+	aPID=$(pgrep -o -u ${GRAFANA_USER} -x $(basename ${GRAFANA_PROG}))
+	is_running
+        krc_status "running with PID ${aPID}" "not running"
+	echo "TODO, usage disk"
+	;;
+     info)
+	 echo  "Info grafana ("${GRAFANA_PROVIDES}")... "
+	 
+		for par in PROVIDES USER GROUP ENV PREFIX DATA PROG CFG PORT IP46 VAR LIBEXEC CHECK_GRAFANA CHECK_TIMEOUT CHECK_HOST; do
+		    kob_showvar GRAFANA_${par}
+		done
+		;;
+
+     validate)
+		echo "Validate ${GRAFANA_PROVIDES} (grafana)"
+
+		test -f ${GRAFANA_ENV}
+		krc_status "OK - environment file ${GRAFANA_ENV} exist" "Error envfile ${GRAFANA_ENV} not exist"
+		
+		test -f ${GRAFANA_PROG}
+		krc_status "OK - programm ${GRAFANA_PROG} exist and a file" "Error - program ${GRAFANA_PROG}  do not exist"
+		
+		test -x ${GRAFANA_PROG}
+		krc_status "OK - program ${GRAFANA_PROG} executeable" "Error - program ${GRAFANA_PROG} not executeable"
+
+		test -f ${GRAFANA_CFG}
+		krc_status "OK - file config ${GRAFANA_CFG} exist" "Error - configfile ${GRAFANA_CFG} not exist"
+
+		test -r ${GRAFANA_CFG}
+		krc_status "OK - readable configfile ${GRAFANA_CFG} " "Error - configfile ${GRAFANA_CFG} not readable"
+		
+		test -f ${GRAFANA_CHECK_GRAFANA}
+		krc_status "OK - check_grafana ${GRAFANA_CHECK_GRAFANA} exist" "Error - no check_grafana available"
+
+		test -x ${GRAFANA_CHECK_GRAFANA}
+		krc_status "OK - check_grafana ${GRAFANA_CHECK_GRAFANA} executable" "Error - no check_grafana ${GRAFANA_CHECK_GRAFANA}  not executable"
+
+		aRun=""$(${GRAFANA_CHECK_GRAFANA} -H ${GRAFANA_CHECK_HOST} -p ${GRAFANA_PORT} ${GRAFANA_IP46} -t 2  2>/dev/null)
+		krc_status "OK - grafana allow connect to ${GRAFANA_CHECK_HOST} ${aRun}" "Error - grafana not acception connection, ${aRun}" "Unknown - grafanad not accepting connection"
+
+		# validate conf by emulate 
+		#echo "| ${GRAFANA_PROG} -c ${GRAFANA_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${GRAFANA_CFG} contains errors"
+
+		;;
+
+	wrapper)
+	    cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    grafana for $(id -un)
+### END INIT INFO                                  
+PROVIDES=\$(basename \$0)
+GRAFANA_USER=${GRAFANA_USER-$(id -un)}
+GRAFANA_GROUP=${GRAFANA_GROUP-$(id -gn)}
+GRAFANA_PREFIX=${GRAFANA_PREFIX-/}
+GRAFANA_CFG=${GRAFANA_CFG-/etc/nagios/grafana.cfg}
+# DEFAULT, 3000
+#GRAFANA_PORT=${GRAFANA_PORT-3000}
+GRAFANA_START_STOP=${GRAFANA_START_STOP-/etc/start-stop.d/start-stop-grafana}
+# Where is the grafana programm?
+GRAFANA_PROG=$(which grafana)
+# Where is the check_grafana
+# GRAFANA_CHECK_GRAFANA
+
+#
+GRAFANA_VAR=${GRAFANA_VAR-/var/log/${NARPE_USER}}
+
+. \${GRAFANA_START_STOP}
+EOF
+	    ;;
+	
+	help)
+	    echo "Helping ${GRAFANA_PROVIDES} (grafana)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+status - status of the daemon
+info - show info about configuration
+validate - validate the configuration and environment
+check - check the running daemon
+grafana-cli - call grafana-cli
+wrapper - output a new start-stop wrapper
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|check|info|validate|grafana-cli|wrapper]"
+        exit 1
+        ;;
+esac
+
+
