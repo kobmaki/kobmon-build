@@ -1,0 +1,303 @@
+#!/bin/bash
+# Author: Uwe Ebel (kobmaki)
+# Projekt: kobmon-build
+# Info: start stop script for kibana
+# Licence: GPL v2
+# 
+
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+
+
+if [[ $0 =~ "start-stop-kibana" && ! "$1" =~ "wrapper"  ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECT, ONLY OPTION wrapper allowed"
+    exit 2
+fi
+
+function is_running()
+{
+    #pgrep -o -u ${KIBANA_USER} -x $(basename ${KIBANA_PROG}) 2>/dev/null >/dev/null
+    pgrep -o -u ${KIBANA_USER} -x node 2>/dev/null >/dev/null     
+    return $?
+}
+
+# FIX for unset home, so no profile was read
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null >/dev/null
+fi
+
+# prefix for kibana
+KIBANA_PREFIX=${KIBANA_PREFIX-/usr/local/kibana}
+
+# where is the kibana binary?
+KIBANA_PROG=${KIBANA_PROG-${KIBANA_PREFIX}/bin/kibana}
+
+# path of the kibana config file
+KIBANA_CFG=${KIBANA_CFG-${KIBANA_PREFIX}/config/kibana.yml}
+
+# Which env file should be read
+KIBANA_ENV=${KIBANA_ENV-$(dirname ${KIBANA_CFG} 2>/dev/null)/${KIBANA_USER}-env.sh}
+
+# Default port 3000
+KIBANA_PORT=${KIBANA_PORT-5601}
+
+
+# set the provides for start/stop
+KIBANA_PROVIDES=${KIBANA_PROVIDES-$(basename ${0})}
+
+KIBANA_VAR=${KIBANA_VAR-${KIBANA_PREFIX}/var/log/kibana}
+
+# where is the check_kibana
+KIBANA_CHECK_KIBANA=${KIBANA_CHECK_KIBANA-${KIBANA_PREFIX}/bin/check_kibana}
+
+# if we run a check, which host should we use
+KIBANA_CHECK_HOST=${KIBANA_CHECK_HOST-localhost}
+
+# default check_command is empty
+# if you run this check against the running kibana daemon you get the version of the daemon
+KIBANA_CHECK_COMMAND=""
+
+if [[ "$1" =~ "wrapper" ]]; then
+KIBANA_USER=${KIBANA_USER-$(id -un)}
+fi
+
+if [[ ! "$1" =~ "wrapper" && ( -z ${KIBANA_USER} ) ]]; then echo "WRONG KONFIGURATION, KIBANA_USER empty"; exit 2; fi
+
+function config_check () {
+#        $KIBANA_PROG -v ${KIBANA_CFG} > /dev/null 2>&1
+	 test -x ${KIBANA_PROG} || ( echo "no binary ${KIBANA_PROG}" && return 1 )
+        if [[ -f ${KIBANA_CFG} && -r ${KIBANA_CFG} ]]; then
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${KIBANA_USER} -x $(basename ${KIBANA_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${KIBANA_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|validate) 
+        if [ "`whoami`" != "${KIBANA_USER}" ]; then
+            su -l  ${KIBANA_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${KIBANA_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+case "$1" in
+
+    start)
+	test -f ${KIBANA_ENV} && test -r ${KIBANA_ENV} && . ${KIBANA_ENV}
+	
+	echo -n "Starting "${KIBANA_PROVIDES}" (kibana) as user ${KIBANA_USER} "
+	aPID=$(pgrep -o -u ${KIBANA_USER} -x node 2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	   cd ${KIBANA_PREFIX}
+	  $KIBANA_PROG serve -c ${KIBANA_CFG} -p ${KIBANA_PORT}  > ${KIBANA_VAR}/start-stop.log 2>&1 &
+        else
+          echo "- Error in configuration files ${KIBANA_CFG}"
+	  false
+          krc_status "" " - please read ${KIBANA_VAR}/config.kibana.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${KIBANA_USER} -x node 2>/dev/null)
+	 krc_status  "started as user ${KIBANA_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${KIBANA_PROVIDES}" (kibana) as user "${KIBANA_USER}" "
+	aPID=$(pgrep -o -u ${KIBANA_USER}  -x node  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	
+	 while is_running; do
+	        kill -TERM $(pgrep -o  -x node -u ${KIBANA_USER} 2>/dev/null)
+		  echo -n '.'
+			   sleep 1
+        done;
+         krc_status " stopped PID ${aPID}"
+	;;
+
+    restart)
+	$0 stop
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${KIBANA_PROVIDES}" (kibana)... "
+	aPID=$(pgrep -o -u ${KIBANA_USER} -x node)
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+    check)
+	echo "Check kibana ("${KIBANA_PROVIDES}")... "
+	aPID=$(pgrep -o -u ${KIBANA_USER} -x $(basename ${KIBANA_PROG}))
+	is_running
+        krc_status "running with PID ${aPID}" "not running"
+	echo "TODO, usage disk"
+	;;
+     info)
+	 echo  "Info kibana ("${KIBANA_PROVIDES}")... "
+	 
+		for par in PROVIDES USER GROUP ENV PREFIX  PROG CFG PORT VAR CHECK_KIBANA CHECK_HOST; do
+		    kob_showvar KIBANA_${par}
+		done
+		;;
+
+     validate)
+		echo "Validate ${KIBANA_PROVIDES} (kibana)"
+
+		test -f ${KIBANA_ENV}
+		krc_status "OK - environment file ${KIBANA_ENV} exist" "Error envfile ${KIBANA_ENV} not exist"
+		
+		test -f ${KIBANA_PROG}
+		krc_status "OK - programm ${KIBANA_PROG} exist and a file" "Error - program ${KIBANA_PROG}  do not exist"
+		
+		test -x ${KIBANA_PROG}
+		krc_status "OK - program ${KIBANA_PROG} executeable" "Error - program ${KIBANA_PROG} not executeable"
+
+		test -f ${KIBANA_CFG}
+		krc_status "OK - file config ${KIBANA_CFG} exist" "Error - configfile ${KIBANA_CFG} not exist"
+
+		test -r ${KIBANA_CFG}
+		krc_status "OK - readable configfile ${KIBANA_CFG} " "Error - configfile ${KIBANA_CFG} not readable"
+		
+		test -f ${KIBANA_CHECK_KIBANA}
+		krc_status "OK - check_kibana ${KIBANA_CHECK_KIBANA} exist" "Error - no check_kibana available"
+
+		test -x ${KIBANA_CHECK_KIBANA}
+		krc_status "OK - check_kibana ${KIBANA_CHECK_KIBANA} executable" "Error - no check_kibana ${KIBANA_CHECK_KIBANA}  not executable"
+
+		aRun=""$(${KIBANA_CHECK_KIBANA} -H ${KIBANA_CHECK_HOST} -p ${KIBANA_PORT} ${KIBANA_IP46} -t 2  2>/dev/null)
+		krc_status "OK - kibana allow connect to ${KIBANA_CHECK_HOST} ${aRun}" "Error - kibana not acception connection, ${aRun}" "Unknown - kibanad not accepting connection"
+
+		# validate conf by emulate 
+		#echo "| ${KIBANA_PROG} -c ${KIBANA_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${KIBANA_CFG} contains errors"
+
+		;;
+
+        kibana)
+	  shift
+	  exec ${KIBANA_PROG} $@
+	;;
+	wrapper)
+
+	    cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    kibana for $(id -un)
+### END INIT INFO                                  
+PROVIDES=\$(basename \$0)
+KIBANA_USER=${KIBANA_USER-$(id -un)}
+KIBANA_GROUP=${KIBANA_GROUP-$(id -gn)}
+
+KIBANA_PREFIX=${KIBANA_PREFIX-/}
+KIBANA_CFG=${KIBANA_CFG-/etc/nagios/kibana.cfg}
+# DEFAULT, 5601
+#KIBANA_PORT=${KIBANA_PORT-5601}
+KIBANA_START_STOP=${KIBANA_START_STOP-/etc/start-stop.d/start-stop-kibana}
+# Where is the kibana programm?
+KIBANA_PROG=${KIBANA_PROG-$KIBANA_PREFIX-/bin/kibana}
+# Where is the check_kibana
+
+#
+KIBANA_VAR=${KIBANA_VAR-/var/log/${NARPE_USER}}
+
+. \${KIBANA_START_STOP}
+EOF
+	    ;;
+	
+	help)
+	    echo "Helping ${KIBANA_PROVIDES} (kibana)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+status - status of the daemon
+info - show info about configuration
+validate - validate the configuration and environment
+check - check the running daemon
+kibana - call kibana
+wrapper - output a new start-stop wrapper in systemv style
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|check|info|validate|kibana|wrapper]"
+        exit 1
+        ;;
+esac
+
+
