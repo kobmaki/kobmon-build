@@ -1,0 +1,301 @@
+#!/bin/bash
+# Author: Uwe Ebel (kobmaki)
+# Projekt: kobmon-build
+# Info: start stop script for elasticsearch
+# Licence: GPL v2
+# 
+
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+
+
+if [[ $0 =~ "start-stop-elasticsearch" && ! "$1" =~ "wrapper"  ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECT, ONLY OPTION wrapper allowed"
+    exit 2
+fi
+
+function is_running()
+{
+    #pgrep -o -u ${ELASTICSEARCH_USER} -x $(basename ${ELASTICSEARCH_PROG}) 2>/dev/null >/dev/null
+    pgrep -o -u ${ELASTICSEARCH_USER} -f org.elasticsearch.bootstrap.Elasticsearch 2>/dev/null >/dev/null     
+    return $?
+}
+
+# FIX for unset home, so no profile was read
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null >/dev/null
+fi
+
+# prefix for elasticsearch
+ELASTICSEARCH_PREFIX=${ELASTICSEARCH_PREFIX-/usr/local/elasticsearch}
+
+# where is the elasticsearch binary?
+ELASTICSEARCH_PROG=${ELASTICSEARCH_PROG-${ELASTICSEARCH_PREFIX}/bin/elasticsearch}
+
+# path of the elasticsearch config file
+ELASTICSEARCH_CFG=${ELASTICSEARCH_CFG-${ELASTICSEARCH_PREFIX}/config/elasticsearch.yml}
+
+# Which env file should be read
+ELASTICSEARCH_ENV=${ELASTICSEARCH_ENV-$(dirname ${ELASTICSEARCH_CFG} 2>/dev/null)/${ELASTICSEARCH_USER}-env.sh}
+
+# Default port 9200
+ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT-9200}
+
+
+# set the provides for start/stop
+ELASTICSEARCH_PROVIDES=${ELASTICSEARCH_PROVIDES-$(basename ${0})}
+
+ELASTICSEARCH_VAR=${ELASTICSEARCH_VAR-${ELASTICSEARCH_PREFIX}/var/log/elasticsearch}
+
+
+# if we run a check, which host should we use
+ELASTICSEARCH_CHECK_HOST=${ELASTICSEARCH_CHECK_HOST-localhost}
+
+# default check_command is empty
+# if you run this check against the running elasticsearch daemon you get the version of the daemon
+ELASTICSEARCH_CHECK_COMMAND=""
+
+if [[ "$1" =~ "wrapper" ]]; then
+ELASTICSEARCH_USER=${ELASTICSEARCH_USER-$(id -un)}
+fi
+
+if [[ ! "$1" =~ "wrapper" && ( -z ${ELASTICSEARCH_USER} ) ]]; then echo "WRONG KONFIGURATION, ELASTICSEARCH_USER empty"; exit 2; fi
+
+function config_check () {
+#        $ELASTICSEARCH_PROG -v ${ELASTICSEARCH_CFG} > /dev/null 2>&1
+	 test -x ${ELASTICSEARCH_PROG} || ( echo "no binary ${ELASTICSEARCH_PROG}" && return 1 )
+        if [[ -f ${ELASTICSEARCH_CFG} && -r ${ELASTICSEARCH_CFG} ]]; then
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${ELASTICSEARCH_USER} -x $(basename ${ELASTICSEARCH_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${ELASTICSEARCH_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|validate) 
+        if [ "`whoami`" != "${ELASTICSEARCH_USER}" ]; then
+            su -l  ${ELASTICSEARCH_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${ELASTICSEARCH_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+case "$1" in
+
+    start)
+	test -f ${ELASTICSEARCH_ENV} && test -r ${ELASTICSEARCH_ENV} && . ${ELASTICSEARCH_ENV}
+	
+	echo -n "Starting "${ELASTICSEARCH_PROVIDES}" (elasticsearch) as user ${ELASTICSEARCH_USER} "
+	aPID=$(pgrep -o -u ${ELASTICSEARCH_USER} -f org.elasticsearch.bootstrap.Elasticsearch  2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	   cd ${ELASTICSEARCH_PREFIX}
+	  $ELASTICSEARCH_PROG -d    > ${ELASTICSEARCH_VAR}/start-stop.log 2>&1 &
+        else
+          echo "- Error in configuration files ${ELASTICSEARCH_CFG}"
+	  false
+          krc_status "" " - please read ${ELASTICSEARCH_VAR}/config.elasticsearch.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${ELASTICSEARCH_USER} -f org.elasticsearch.bootstrap.Elasticsearch 2>/dev/null)
+	 krc_status  "started as user ${ELASTICSEARCH_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${ELASTICSEARCH_PROVIDES}" (elasticsearch) as user "${ELASTICSEARCH_USER}" "
+	aPID=$(pgrep -o -u ${ELASTICSEARCH_USER}  -f org.elasticsearch.bootstrap.Elasticsearch  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	
+	 while is_running; do
+	        kill -TERM $(pgrep -o -u ${ELASTICSEARCH_USER} -f org.elasticsearch.bootstrap.Elasticsearch 2>/dev/null)
+		  echo -n '.'
+			   sleep 1
+        done;
+         krc_status " stopped PID ${aPID}"
+	;;
+
+    restart)
+	$0 stop
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${ELASTICSEARCH_PROVIDES}" (elasticsearch)... "
+	aPID=$(pgrep -o -u ${ELASTICSEARCH_USER} -f org.elasticsearch.bootstrap.Elasticsearch)
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+    check)
+	echo "Check elasticsearch ("${ELASTICSEARCH_PROVIDES}")... "
+	aPID=$(pgrep -o -u ${ELASTICSEARCH_USER} -x $(basename ${ELASTICSEARCH_PROG}))
+	is_running
+        krc_status "running with PID ${aPID}" "not running"
+	echo "TODO, usage disk"
+	;;
+     info)
+	 echo  "Info elasticsearch ("${ELASTICSEARCH_PROVIDES}")... "
+	 
+		for par in PROVIDES USER GROUP ENV PREFIX  PROG CFG PORT VAR CHECK_ELASTICSEARCH CHECK_HOST; do
+		    kob_showvar ELASTICSEARCH_${par}
+		done
+		;;
+
+     validate)
+		echo "Validate ${ELASTICSEARCH_PROVIDES} (elasticsearch)"
+
+		test -f ${ELASTICSEARCH_ENV}
+		krc_status "OK - environment file ${ELASTICSEARCH_ENV} exist" "Error envfile ${ELASTICSEARCH_ENV} not exist"
+		
+		test -f ${ELASTICSEARCH_PROG}
+		krc_status "OK - programm ${ELASTICSEARCH_PROG} exist and a file" "Error - program ${ELASTICSEARCH_PROG}  do not exist"
+		
+		test -x ${ELASTICSEARCH_PROG}
+		krc_status "OK - program ${ELASTICSEARCH_PROG} executeable" "Error - program ${ELASTICSEARCH_PROG} not executeable"
+
+		test -f ${ELASTICSEARCH_CFG}
+		krc_status "OK - file config ${ELASTICSEARCH_CFG} exist" "Error - configfile ${ELASTICSEARCH_CFG} not exist"
+
+		test -r ${ELASTICSEARCH_CFG}
+		krc_status "OK - readable configfile ${ELASTICSEARCH_CFG} " "Error - configfile ${ELASTICSEARCH_CFG} not readable"
+		
+		test -f ${ELASTICSEARCH_CHECK_ELASTICSEARCH}
+		krc_status "OK - check_elasticsearch ${ELASTICSEARCH_CHECK_ELASTICSEARCH} exist" "Error - no check_elasticsearch available"
+
+		test -x ${ELASTICSEARCH_CHECK_ELASTICSEARCH}
+		krc_status "OK - check_elasticsearch ${ELASTICSEARCH_CHECK_ELASTICSEARCH} executable" "Error - no check_elasticsearch ${ELASTICSEARCH_CHECK_ELASTICSEARCH}  not executable"
+
+		aRun=""$(${ELASTICSEARCH_CHECK_ELASTICSEARCH} -H ${ELASTICSEARCH_CHECK_HOST} -p ${ELASTICSEARCH_PORT} ${ELASTICSEARCH_IP46} -t 2  2>/dev/null)
+		krc_status "OK - elasticsearch allow connect to ${ELASTICSEARCH_CHECK_HOST} ${aRun}" "Error - elasticsearch not acception connection, ${aRun}" "Unknown - elasticsearchd not accepting connection"
+
+		# validate conf by emulate 
+		#echo "| ${ELASTICSEARCH_PROG} -c ${ELASTICSEARCH_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${ELASTICSEARCH_CFG} contains errors"
+
+		;;
+
+        elasticsearch)
+	  shift
+	  exec ${ELASTICSEARCH_PROG} $@
+	;;
+	wrapper)
+
+	    cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    elasticsearch for $(id -un)
+### END INIT INFO                                  
+PROVIDES=\$(basename \$0)
+ELASTICSEARCH_USER=${ELASTICSEARCH_USER-$(id -un)}
+ELASTICSEARCH_GROUP=${ELASTICSEARCH_GROUP-$(id -gn)}
+
+ELASTICSEARCH_PREFIX=${ELASTICSEARCH_PREFIX-/}
+ELASTICSEARCH_CFG=${ELASTICSEARCH_CFG-/etc/nagios/elasticsearch.cfg}
+# DEFAULT, 5601
+#ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT-5601}
+ELASTICSEARCH_START_STOP=${ELASTICSEARCH_START_STOP-/etc/start-stop.d/start-stop-elasticsearch}
+# Where is the elasticsearch programm?
+ELASTICSEARCH_PROG=${ELASTICSEARCH_PROG-$ELASTICSEARCH_PREFIX-/bin/elasticsearch}
+# Where is the check_elasticsearch
+
+#
+ELASTICSEARCH_VAR=${ELASTICSEARCH_VAR-/var/log/${NARPE_USER}}
+
+. \${ELASTICSEARCH_START_STOP}
+EOF
+	    ;;
+	
+	help)
+	    echo "Helping ${ELASTICSEARCH_PROVIDES} (elasticsearch)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+status - status of the daemon
+info - show info about configuration
+validate - validate the configuration and environment
+check - check the running daemon
+elasticsearch - call elasticsearch
+wrapper - output a new start-stop wrapper in systemv style
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|check|info|validate|elasticsearch|wrapper]"
+        exit 1
+        ;;
+esac
+
+
