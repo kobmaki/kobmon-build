@@ -97,7 +97,7 @@ NRPE_CFG=${NRPE_CFG-/etc/nagios-nrpe/${NRPE_USER}-nrpe.cfg}
 NRPE_ENV=${NRPE_ENV-$(dirname ${NRPE_CFG} 2>/dev/null)/${NRPE_USER}-env.sh}
 
 # Default port 5666
-NRPE_PORT=${NRPE_PORT-5666}
+#NRPE_PORT=${NRPE_PORT-5666}
 
 # Default IP v4
 NRPE_IP46=${NRPE_IP46-4}
@@ -116,7 +116,7 @@ NRPE_VAR=${NRPE_VAR-/var/log/${NRPE_USER}}
 #NRPE_TMP=${NRPE_TMP-${NRPE_VAR}/nrpe.tmp}
 
 # where are the libexec/plugins installed
-NRPE_LIBEXEC=${NRPE_LIBEXEC-/usr/local/nagios/libexec/}
+NRPE_LIBEXEC=${NRPE_LIBEXEC-/usr/local/nagios/libexec}
 
 # where is the check_nrpe
 NRPE_CHECK_NRPE=${NRPE_CHECK_NRPE-${NRPE_LIBEXEC}/check_nrpe}
@@ -138,7 +138,7 @@ NRPE_CHECK_COMMAND=""
 
 NRPE_DELIMITER=${NRPE_DELIMITER-|}
 
-if [[ -z ${NRPE_USER} || -z ${NRPE_PORT} ]]; then echo "WRONG KONFIGURATION, NRPE_USER or NRPE_PORT empty"; exit 2; fi
+if [[ -z ${NRPE_USER} || -z ${NRPE_PORT} ]]; then false; krc_status "" "WRONG KONFIGURATION: NRPE_USER and NRPE_PORT empty"; exit 2; fi
 
 function config_check () {
 #        $NRPE_PROG -v ${NRPE_CFG} > /dev/null 2>&1
@@ -248,6 +248,16 @@ case "$1" in
 	krc_status "running with PID ${aPID}" "not running"
         ;;
 
+    nrpe)
+	shift;
+	$NRPE_PROG $@
+	;;
+
+    check_nrpe)
+	shift
+	${NRPE_CHECK_NRPE} $@
+	;;
+    
      info)
 	 echo  "Info nrpe ("${NRPE_PROVIDES}")... "
 	 
@@ -281,7 +291,7 @@ case "$1" in
 		krc_status "OK - check_nrpe ${NRPE_CHECK_NRPE} executable" "Error - no check_nrpe ${NRPE_CHECK_NRPE}  not executable"
 
 		aRun=""$(${NRPE_CHECK_NRPE} -H ${NRPE_CHECK_HOST} -p ${NRPE_PORT} ${NRPE_IP46} -t 2  2>/dev/null)
-		krc_status "OK - nrpe allow connect to ${NRPE_CHECK_HOST} ${aRun}" "Error - nrpe not acception connection, ${aRun}" "Unknown - nrped not accepting connection"
+		krc_status "OK - nrpe allow connect to ${NRPE_CHECK_HOST} ${aRun}" "Error - nrpe not acception connection, ${aRun}" "Unknown - nrpe not accepting connection"
 
 		# validate conf by emulate 
 		#echo "| ${NRPE_PROG} -c ${NRPE_CFG} -i 2>/dev/null"
@@ -410,7 +420,8 @@ restart - restart the daemon
 status - status of the agent
 info - show info about configuration
 validate - validate the configuration and environment
-nrped - call daemon 
+nrpe - call nrpe daemon 
+check_nrpe - call check_nrpe
 check - checks if everything is ok
 check-one - run nrpe checks
 check-z - runs multiple nrpe checks from a file
@@ -419,7 +430,7 @@ wrapper - output a new start-stop wrapper
 EOF
 	    ;;
 	*)
-        echo "Usage: $0 [start|stop|help|status|restart|info|nrped|check-one|check-z|wrapper|example]"
+        echo "Usage: $0 [start|stop|help|status|restart|info|nrpe|check_nrpe|check-one|check-z|wrapper|example]"
         exit 1
         ;;
 esac
