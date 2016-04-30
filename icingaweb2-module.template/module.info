@@ -1,5 +1,6 @@
 Name: @@TEMPLATE@@
 Version: 0.0.1
-Depends: iframe
 Description: Description @@TEMPLATE@@
+  In the file module.info from @@TEMPLATE@@ you should add more infos.
+  The Information can have more than these two lines.
 
