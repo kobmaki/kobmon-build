@@ -375,7 +375,8 @@ function buildIcinga2 {
 	  -DICINGA2_WITH_HELLO=ON \
 	  -DICINGA2_WITH_TESTS=FALSE \
 	  -DBoost_NO_BOOST_CMAKE=TRUE \
-	  -DICINGA2_UNITY_BUILD=OFF \
+	  -DICINGA2_UNITY_BUILD=ON \
+	  -DICINGA2_WITH_TESTS=OFF \
 	  -Wno-dev
 
     krc_status "... cmake finished" "... cmake error" || return

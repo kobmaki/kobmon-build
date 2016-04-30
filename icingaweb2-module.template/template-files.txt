@@ -7,4 +7,6 @@ doc/01-documenation.md
 doc/10-installation.md
 library/
 module.info
-public/
+run.php
+public/css/modules.less
+public/js/modules.js
