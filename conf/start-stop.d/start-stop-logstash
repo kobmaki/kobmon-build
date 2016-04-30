@@ -1,0 +1,297 @@
+#!/bin/bash
+# Author: Uwe Ebel
+# Projekt: kobmon-build
+# Info: start stop script for logstash
+# Licence: GPL v2
+# 
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+if [[ "$1" =~ "wrapper" ]]; then
+LOGSTASH_USER=${LOGSTASH_USER-$(id -un)}
+fi
+
+
+if [[ $0 =~ "start-stop-logstash" && ! "$1" =~ "wrapper" ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECT"
+exit 2
+fi
+
+function is_running()
+{
+    pgrep -o -u ${LOGSTASH_USER} -f ${LOGSTASH_CFG}  2>/dev/null >/dev/null
+    return $?
+}
+
+# FIX for unset home
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null
+fi
+
+# prefix for logstash
+LOGSTASH_PREFIX=${LOGSTASH_PREFIX-/usr/local/logstash}
+
+# where is the logstash binary?
+LOGSTASH_PROG=${LOGSTASH_PROG-${LOGSTASH_PREFIX}/bin/logstash}
+
+# path of the logstash config file
+LOGSTASH_CFG=${LOGSTASH_CFG-${LOGSTASH_PREFIX}/conf/logstash.conf}
+
+# Which env file should be read
+LOGSTASH_ENV=${LOGSTASH_ENV-$(dirname ${LOGSTASH_CFG} 2>/dev/null)/${LOGSTASH_USER}-env.sh}
+
+# where should plugins be searched?
+LOGSTASH_PLUGINS_PATH=${LOGSTASH_PLUGINS_PATH-${LOGSTASH_PREFIX}/data/plugins}
+
+# Default IP v4
+LOGSTASH_IP46=${LOGSTASH_IP46-4}
+
+# set the provides for start/stop
+LOGSTASH_PROVIDES=${LOGSTASH_PROVIDES-$(basename ${0})}
+
+LOGSTASH_VAR=${LOGSTASH_VAR-${LOGSTASH_PREFIX}/var}
+#LOGSTASH_TMP=${LOGSTASH_TMP-${LOGSTASH_VAR}/logstash.tmp}
+
+
+
+# default check_command is empty
+# if you run this check against the running logstash daemon you get the version of the daemon
+LOGSTASH_CHECK_COMMAND=""
+
+
+if [[ ! "$1" =~ "wrapper" && -z ${LOGSTASH_USER} ]]; then echo "WRONG KONFIGURATION, LOGSTASH_USER _empty"; exit 2; fi
+
+function config_check () {
+#        $LOGSTASH_PROG -v ${LOGSTASH_CFG} > /dev/null 2>&1
+	 test -x ${LOGSTASH_PROG} || ( echo "no binary ${LOGSTASH_PROG}" && return 1 )
+        if [[ -f ${LOGSTASH_CFG} && -r ${LOGSTASH_CFG} ]]; then
+	    ${LOGSTASH_PROG} agent -t -f ${LOGSTASH_CFG} 
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${LOGSTASH_USER} -x $(basename ${LOGSTASH_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${LOGSTASH_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|validate) 
+        if [ "`whoami`" != "${LOGSTASH_USER}" ]; then
+            su -l  ${LOGSTASH_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${LOGSTASH_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+case "$1" in
+
+    start)
+	test -f ${LOGSTASH_ENV} && test -r ${LOGSTASH_ENV} && . ${LOGSTASH_ENV}
+	echo -n "Starting "${LOGSTASH_PROVIDES}" (logstash) as user ${LOGSTASH_USER} "
+	aPID=$(pgrep -o -u ${LOGSTASH_USER} -f ${LOGSTASH_CFG}  2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	  $LOGSTASH_PROG agent -f ${LOGSTASH_CFG}  > ${LOGSTASH_VAR}/start-stop.log 2>&1 &
+        else
+          echo "- Error in configuration files ${LOGSTASH_CFG}"
+	  false
+          krc_status "" " - please read ${LOGSTASH_VAR}/config.logstash.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${LOGSTASH_USER} -f ${LOGSTASH_CFG} 2>/dev/null)
+	 krc_status  "started as user ${LOGSTASH_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${LOGSTASH_PROVIDES}" (logstash) as user "${LOGSTASH_USER}" "
+	aPID=$(pgrep -o -u ${LOGSTASH_USER}  -f ${LOGSTASH_CFG}  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	
+	 while is_running; do
+	        kill -TERM $(pgrep -o -u ${LOGSTASH_USER} -f ${LOGSTASH_CFG}) 2>/dev/null
+		  echo -n '.'
+			   sleep 1
+        done;
+         krc_status " stopped PID ${aPID}"
+	 
+	;;
+    restart)
+	$0 stop
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${LOGSTASH_PROVIDES}" (logstash)... "
+	aPID=$(pgrep -o -u ${LOGSTASH_USER} -f ${LOGSTASH_CFG})
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+    check)
+	echo "Check logstash ("${LOGSTASH_PROVIDES}")... "
+	aPID=$(pgrep -o -u ${LOGSTASH_USER} -x $(basename ${LOGSTASH_PROG}))
+	is_running
+        krc_status "running with PID ${aPID}" "not running"
+	echo "TODO, usage disk"
+	;;
+     info)
+	 echo  "Info logstash ("${LOGSTASH_PROVIDES}")... "
+	 
+		for par in PROVIDES USER GROUP ENV PREFIX PROG CFG VAR PLUGINS_PATH; do
+		    kob_showvar LOGSTASH_${par}
+		done
+		;;
+
+     validate)
+		echo "Validate ${LOGSTASH_PROVIDES} (logstash)"
+
+		test -f ${LOGSTASH_ENV}
+		krc_status "OK - environment file ${LOGSTASH_ENV} exist" "Error envfile ${LOGSTASH_ENV} not exist"
+		
+		test -f ${LOGSTASH_PROG}
+		krc_status "OK - programm ${LOGSTASH_PROG} exist and a file" "Error - program ${LOGSTASH_PROG}  do not exist"
+		
+		test -x ${LOGSTASH_PROG}
+		krc_status "OK - program ${LOGSTASH_PROG} executeable" "Error - program ${LOGSTASH_PROG} not executeable"
+
+		test -f ${LOGSTASH_CFG}
+		krc_status "OK - file config ${LOGSTASH_CFG} exist" "Error - configfile ${LOGSTASH_CFG} not exist"
+
+		test -r ${LOGSTASH_CFG}
+		krc_status "OK - readable configfile ${LOGSTASH_CFG} " "Error - configfile ${LOGSTASH_CFG} not readable"
+		
+		test -f ${LOGSTASH_CHECK_LOGSTASH}
+		krc_status "OK - check_logstash ${LOGSTASH_CHECK_LOGSTASH} exist" "Error - no check_logstash available"
+
+		test -x ${LOGSTASH_CHECK_LOGSTASH}
+		krc_status "OK - check_logstash ${LOGSTASH_CHECK_LOGSTASH} executable" "Error - no check_logstash ${LOGSTASH_CHECK_LOGSTASH}  not executable"
+
+		echo "Validate config with logstash with -t Option"
+		$LOGSTASH_PROG agent -t -f ${LOGSTASH_CFG} 2>/dev/null >/dev/null
+		# validate conf by emulate 
+		#echo "| ${LOGSTASH_PROG} -c ${LOGSTASH_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${LOGSTASH_CFG} contains errors"
+
+		;;
+        logstash)
+	    shift 
+	    exec ${LOGSTASH_PROG} $@
+	    ;;
+
+	wrapper)
+	    cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: $remote_fs $syslog $network
+# Required-Stop:  $remote_fs $syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    logstash for $(id -un)
+### END INIT INFO                                  
+PROVIDES=\$(basename \$0)
+LOGSTASH_USER=${LOGSTASH_USER-$(id -un)}
+LOGSTASH_GROUP=${LOGSTASH_GROUP-$(id -gn)}
+LOGSTASH_PREFIX=${LOGSTASH_PREFIX-/}
+
+LOGSTASH_CFG=${LOGSTASH_CFG-/etc/logstash/logstash.cfg}
+
+# Where is the logstash programm?
+LOGSTASH_PROG=${LOGSTASH_PROG-${LOGSTASH_PREFIX}/bin/logstash}
+
+#
+LOGSTASH_VAR=${LOGSTASH_VAR-/var/log/${LOGSTASH_USER}/logstash}
+
+LOGSTASH_START_STOP=${LOGSTASH_START_STOP-/etc/start-stop.d/start-stop-logstash}           
+
+. ${LOGSTASH_START_STOP}
+
+EOF
+	    ;;
+	
+	help)
+	    echo "Helping ${LOGSTASH_PROVIDES} (logstash)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+status - status of the daemon
+info - show info about configuration
+validate - validate the configuration and environment
+check - check the running daemon
+logstash-cli - call logstash-cli
+wrapper - output a new start-stop wrapper
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|check|info|validate|logstash-cli|wrapper]"
+        exit 1
+        ;;
+esac
+
+

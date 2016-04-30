@@ -8,14 +8,15 @@ aACTION=$1
 aTEMPLATE=${2-demo}
 aTEMPLATEDIR=$(cd  $(pwd)/$(dirname $0)/../icingaweb2-module.template; pwd) || echo "ERROR no templatedir" && $(exit 2)
 aTEMPLATEFILE=${aTEMPLATEDIR}/template-files.txt
-
+aTMP=/tmp
 case $1 in
 
 
 create)
     cd ${aTEMPLATEDIR}
-    tar czf tmp/${aTEMPLATE}.tgz -T template-files.txt
-    cd tmp
+    
+    tar czf ${aTMP}/${aTEMPLATE}.tgz -T template-files.txt
+    cd ${aTMP}
     mkdir ${aTEMPLATE}
     cd ${aTEMPLATE}
     pwd
@@ -23,11 +24,10 @@ create)
     
     for i in $(fgrep -l "@@TEMPLATE@@" -r *); do sed -i s/"@@TEMPLATE@@"/${aTEMPLATE}/g $i;done;
     
-    cd ..
-    tar czf ../${aTEMPLATE}.tgz ${aTEMPLATE}
+    cd ${aTMP}
+    tar czf ${aTEMPLATE}.tgz ${aTEMPLATE}
     rm -r ${aTEMPLATE}
-    cd ..
-    ls -l $(pwd)/${aTEMPLATE}.tgz
+    ls -l ${aTMP}/${aTEMPLATE}.tgz
     echo "finished create."
     ;;
 
@@ -46,7 +46,7 @@ help)
 example)
     echo "$0 create i2c$(logname)"
     echo " will create a icingaweb2-module with name i2c$(logname)"
-    echo " the tgz-file will be save in "${aTEMPLATEDIR}"/tmp/i2c$(logname).tgz"
+    echo " the tgz-file will be save in "${aTMP}"/i2c$(logname).tgz"
     ;;
 *)
     echo "try help"
