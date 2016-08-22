@@ -6,12 +6,11 @@
 # Info: Build icinga/nagios environment
 
 
-MYPWD=$(pwd) 
+MYPWD=$(pwd)
 #
 
-# a list of programm
-aPROGRAMS=${aPROGRAMS}
-aPROGRAMSAVAILABLE="checkmk icinga2 ICINGA ICINGA2 IDOUTILS mediawiki MEDIAWIKI nagios NAGIOS nagtrap NAGTRAP nagvis NAGVIS NDOUTILS nrpe NRPE SNMPTT"
+# what is available to build
+aPROGRAMSAVAILABLE=" checkmk icinga icinga2 icingaweb2 idoutils mediawiki nagios nagtrap nagvis nagvis nodutils nrpe snmptt "
 
 # some helper scripts
 
@@ -26,24 +25,43 @@ function krc_status ()
     _krc_status_ret=$?
     case ${_krc_status_ret} in
     0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
-            [[ -z $1 ]] ||  echo
+	    [[ -z $1 ]] ||  echo
     ;;
     1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
-            [[  -z $2 ]] || echo
+	    [[  -z $2 ]] || echo
        ;;
     *)
-            echo "UNKNOWN $_krc_status_ret "$3
+	    echo "UNKNOWN $_krc_status_ret "$3
       ;;
    esac
     return $_krc_status_ret
 }
 
+#
+# helper if a string is as substring of
+#
+krc_issubstring(){
+  aSubstr=$1
+  shift
+  aString=$@
+  if [ -z "${aString##*${aSubstr}*}" ]; then
+      return $?
+  fi
+  return 1
+}
+
+
+krc_isProgramEnabled(){
+    krc_issubstring ${1} ${aPROGRAMS}
+    return $?
+}
 
 # read config file
-. kob-monbuild-install.conf 2>/dev/null || ( echo "ERROR could not read kob-monbuild-install.conf" && exit 2 )
+. kob-monbuild-install.conf 2> /dev/null
+krc_status ""  "ERROR could not read kob-monbuild-install.conf"
+aPROGRAMS=" "${aPROGRAMS-''}" "
 
-
-# all options with default value false 
+# all options with default value false
 # enable via optione -e OPTION
 # -e nagios -e mediawiki
 eBuildINFO=
@@ -79,36 +97,36 @@ do
     i) INFO=y
        eBuildINFO=y
       ;;
-    p) 
-          aPATH=${OPTARG};
-          ;;
+    p)
+	  aPATH=${OPTARG};
+	  ;;
     w) aWarnPer=${OPTARG};
-          ;;
+	  ;;
     c) aCritPer=${OPTARG};
-          ;;
+	  ;;
     h) eShowHelp=true
-	  
-          ;;
+	  ;;
     e) 	  case ${OPTARG} in
 	      info) eInfo=true;;
 	      nagios) eBuildNagios=true;;
 	      nrpe) eBuildNrpe=true;;
-              icinga) eBuildIcinga=true;;
+	      icinga) eBuildIcinga=true;;
 	      icinga2) eBuildIcinga2=true;;
-              mediawiki) eBuildMediawiki=true;;
-              checkmk) eBuildCheckmk=true;; # not implemented
-              livestatus) eBuildLivestatus=true;;
-              nagvis)  eBuildNagvis=true ;;
-              ndoutils) eBuildNdoutils=true ;;
-              idoutils) eBuildIdoutils=true;;
-              idodb) eBuildIdodb=true;;
-              snmptt) eBuildSnmptt=true;;
-              nagtrap) eBuildNagtrap=true;;
-              showfiles) eShowFiles=true;;
-              fixlibcopy) eFixLibCopy=true;;   
-              fixdirlink) eFixDirLink=true;;
-              
-	      
+	      icingaweb2) eBuildIcingaweb2=true;; # not implemented
+	      mediawiki) eBuildMediawiki=true;;
+	      checkmk) eBuildCheckmk=true;; # not implemented
+	      livestatus) eBuildLivestatus=true;;
+	      nagvis)  eBuildNagvis=true ;;
+	      ndoutils) eBuildNdoutils=true ;;
+	      idoutils) eBuildIdoutils=true;;
+	      idodb) eBuildIdodb=true;;
+	      snmptt) eBuildSnmptt=true;;
+	      nagtrap) eBuildNagtrap=true;;
+	      showfiles) eShowFiles=true;;
+	      fixlibcopy) eFixLibCopy=true;;
+	      fixdirlink) eFixDirLink=true;;
+
+	
 	      *)
 		  echo "ERROR option "${OPTARG}
 		  ;;
@@ -118,7 +136,7 @@ do
       aPathIsMount="Y"
       ;;
     *) CRITICAL=${CRITICAL}", UNSUPPORTER PARAMETER "${Option}
-          ;;
+	  ;;
       esac
 done
 #echo "FINISH"
@@ -134,7 +152,7 @@ aUSER=${aUSER-$(id -un)}
 # and the groupd
 aGROUP=${aGROUP-$(id -gn)}
 
-mkdir ${aBUILDDIR} 2>/dev/null 
+mkdir ${aBUILDDIR} 2>/dev/null
 
 aPREFIX=${aPREFIX-$HOME/local}
 aPREFIXCONF=${aPREFIX}/conf
@@ -248,6 +266,7 @@ krc_status "#### BUILD INFO START ${date} ####"
 echo " USER: "${aUSER}
 echo " GROUP: "${aGROUP}
 echo " ID: "$(id ${aUSER} )
+echo " PROGRAMS: "${aPRGAMS}
 krc_status "#### Directories ####"
 echo -n " PREFIX: " && krc_status ${aPREFIX}
 echo -n " SRCDIR: " && krc_status ${aSRCDIR}
@@ -259,11 +278,10 @@ echo -n " SHMDIR:" && krc_status ${aSHMDIR}
 krc_status "#### Programs to use ####"
 echo -n " PROGROGRAMS: " && krc_status ""${aPROGRAMS}""
 echo
-for k in ${aPROGRAMSAVAILABLE}; do
-    if [[ ${k} =~ " "${aPROGRAMS}" " ]]; then
+for k in $(echo ${aPROGRAMS}); do
     echo -n " Program ${k}: "
-    krc_status "${k}"
-    fi
+    krc_issubstring ${k} ${aPROGRAMSAVAILABLE}
+    krc_status "supported" "not supported"
 done
 
 krc_status "#### Check some directories ####"
@@ -276,9 +294,12 @@ done
 echo " PREFIX/var/run: "${aPREFIX}/var/run
 
 for k in nagios apache tomcat icinga icinga2 icingaweb2 ; do
+    krc_isProgramEnabled $k
+    if [ $? ]; then
     echo -n " PREFIX/var/log/"${k}": "${aPREFIX}/var/log/${k}
     test -d ${aPREFIX}/var/log/${k}
     krc_status " OK" " directory missing"
+    fi
 done;
 
 krc_status "### Check some programms ###"
@@ -294,7 +315,8 @@ krc_status "### BUILD INFO END ${date} ###"
 }
 
 #
-# build and intall nagios
+# build and install nagios
+#
 
 function buildNagios {
 	 echo "### STARTING BUILD "${aNAGIOSSRCFILE}
@@ -326,30 +348,35 @@ function buildNrpe {
     krc_status "### END BUILD "${aNRPESRCFILE} "### END BUILD WITH ERROR "${aNRPESRCFILE}
 }
 
+#
+# build icinga
+#
 function buildIcinga {
-         krc_status "### STARTING BUILD "${aICINGASRCFILE}
-         cd ${aBUILDDIR}
-         tar xzf ${aICINGASRCFILE}
+	 krc_status "### STARTING BUILD "${aICINGASRCFILE}
+	 cd ${aBUILDDIR}
+	 tar xzf ${aICINGASRCFILE}
 	 aICINGADIR=$(tar tf ${aICINGASRCFILE} |grep "/"|head -1 | sed s/"\/.*"//g)
-         cd ${aICINGADIR} || $(echo missing dir ${aICINGADIR} && exit 2)
-         which fix-nagios-output.sh 2>/dev/null >/dev/null
-         if [ $? ]; then
-             echo fix html code
-             fix-nagios-output.sh -i cgi/*.c
-         fi
+	 cd ${aICINGADIR} || $(echo missing dir ${aICINGADIR} && exit 2)
+	 which fix-nagios-output.sh 2>/dev/null >/dev/null
+	 if [ $? ]; then
+	     echo fix html code
+	     fix-nagios-output.sh -i cgi/*.c
+	 fi
 	 mkdir -p ${aPREFIX}/icinga || ( echo "ERROR buildICINGA, create dir ${aPREFIX}/icinga" && exit 2 )
-         ./configure --prefix=${aPREFIX}/icinga --with-icinga-user=${aUSER} --with-nagios-user=${aUSER} --with-icinga-group=${aGROUP} --with-command-user=${aUSER} --with-web-user=${aUSER} --with-web-group=${aGROUP} --with-nagios-group=${aGROUP} --with-httpd-conf=${aPREFIX}/icinga/etc --with-cgiurl=/icinga/cgi-bin --with-htmlurl=/icinga   --enable-event-broker --enable-nanosleep --enable-nagiosenv --enable-icingaenv --enable-ssl-X --enable-idoutils --with-icinga-user=${aUSER} --with-icinga-group=${aGROUP}
-         make clean
-         make icinga cgis contrib modules install install-base install-cgis
+	 ./configure --prefix=${aPREFIX}/icinga --with-icinga-user=${aUSER} --with-nagios-user=${aUSER} --with-icinga-group=${aGROUP} --with-command-user=${aUSER} --with-web-user=${aUSER} --with-web-group=${aGROUP} --with-nagios-group=${aGROUP} --with-httpd-conf=${aPREFIX}/icinga/etc --with-cgiurl=/icinga/cgi-bin --with-htmlurl=/icinga   --enable-event-broker --enable-nanosleep --enable-nagiosenv --enable-icingaenv --enable-ssl-X --enable-idoutils --with-icinga-user=${aUSER} --with-icinga-group=${aGROUP}
+	 make clean
+	 make icinga cgis contrib modules install install-base install-cgis
 	 krc_status "MAKING IDOSUITLS"
 	 cd ${aBUILDDIR}/${aICINGADIR}/module/idoutils
 	 make
 	 make install
 	 cd ../../
-         krc_status "### END BUILD "${aICINGASRCFILE}
+	 krc_status "### END BUILD "${aICINGASRCFILE}
 }
 
-
+#
+# build icinga2
+#
 function buildIcinga2 {
     krc_status "#### STARTING BUILD "${aICINGA2SRCFILE}
     krc_status "... extract source"
@@ -372,23 +399,22 @@ function buildIcinga2 {
 	  -DICINGA2_WITH_PGSQL=OFF \
 	  -DICINGA2_WITH_MYSQL=ON \
 	  -DBUILDTESTING=FALSE \
-	  -DICINGA2_WITH_HELLO=ON \
-	  -DICINGA2_WITH_TESTS=FALSE \
+	  -DICINGA2_WITH_HELLO=FALSE \
 	  -DBoost_NO_BOOST_CMAKE=TRUE \
 	  -DICINGA2_UNITY_BUILD=ON \
 	  -DICINGA2_WITH_TESTS=OFF \
 	  -Wno-dev
 
     krc_status "... cmake finished" "... cmake error" || return
-    
+
     krc_status "... make start"
     make -j 4
     krc_status "... make finished" " ... make error" || return
 
-    krc_status "... install" 
+    krc_status "... install"
     make install
     krc_status "... install finished " "... install error" || return
-    
+
     krc_status "### END BUILD "${aICINGA2SRCFILE}
 }
 
@@ -405,17 +431,17 @@ function buildLivestatus {
 	 make install
 	 # fix files
 	  mv ${aPREFIX}/nagios/lib/mk-livestatus/livestatus.o ${aPREFIX}/nagios/lib/livestatus.o
-          rmdir ${aPREFIX}/nagios/lib/mk-livestatus 2>/dev/null
+	  rmdir ${aPREFIX}/nagios/lib/mk-livestatus 2>/dev/null
 	 echo "#### ENDING BUILD livestatus "${aCHECKMKVERSION}") ####"
 }
 
 
 function buildCheckMK {
-         echo "#### STARTING BUILD checkmk  ("${aCHECKMKVERSION}") ####"
-         cd ${aBUILDDIR}
-	 tar xzf ${aCHECKMKSRCFILE} 
-         cd check_mk-${aCHECKMKVERSION}
-         pwd
+	 echo "#### STARTING BUILD checkmk  ("${aCHECKMKVERSION}") ####"
+	 cd ${aBUILDDIR}
+	 tar xzf ${aCHECKMKSRCFILE}
+	 cd check_mk-${aCHECKMKVERSION}
+	 pwd
 	 # save the original setup.sh
 	 cp setup.sh setup.sh.ORG
 	 echo "fixing setupconf.."
@@ -424,7 +450,7 @@ function buildCheckMK {
 	 grep "^SETUPCONF" setup.sh
 	 ln -s ${MYPWD}/my-setup-checkmk.conf . 2>/dev/null
 	 ./setup.sh --yes
-         echo "#### ENDING BUILD checkmk "${aCHECKMKVERSION}") ####"
+	 echo "#### ENDING BUILD checkmk "${aCHECKMKVERSION}") ####"
 }
 
 function showFiles {
@@ -447,7 +473,7 @@ if [ -f ${aPREFIX}/nagios/lib/mk-livestatus/livestatus.o ]; then
     rmdir ${aPREFIX}/nagios/lib/mk-livestatus 2>/dev/null
 fi
 
-#/lib/mk-livestatus/livestatus.o 
+#/lib/mk-livestatus/livestatus.o
 
 echo "#### ENDING FIX LIB COPY ####"
 }
@@ -499,13 +525,13 @@ function buildNdoutils {
 	  make clean
 	  make
 	  make install
-	  echo "### ENDING BUILD ndoutils " 
+	  echo "### ENDING BUILD ndoutils "
 }
 
 function buildIdoutils {
-          krc_status "### STARTING BUILD idoutils ("${aIDOUTILSVERSION}") ###"
+	  krc_status "### STARTING BUILD idoutils ("${aIDOUTILSVERSION}") ###"
 	  echo " nothing to do as build with icinga"
-          krc_status "### ENDING BUILD idoutils "
+	  krc_status "### ENDING BUILD idoutils "
 }
 
 
@@ -535,7 +561,7 @@ function buildNagvis {
     mkdir ${aPREFIX}/nagvis 2>/dev/null
     mkdir ${aPREFIX}/conf/nagvis 2>/dev/null
     cd ${aPREFIX}/nagvis
-    ln -s ../conf/nagvis etc 2>/dev/null 
+    ln -s ../conf/nagvis etc 2>/dev/null
     mkdir etc/maps 2>/dev/null
     cd ${aBUILDDIR}
     tar xzf ${aNAGVISSRCFILE}
@@ -579,7 +605,7 @@ function buildNagtrap {
     cd ${aBUILDDIR}
     tar xzf ${aNAGTRAPSRCFILE} || return
     cd nagtrap-${aNAGTRAPVERSION}
-    ./configure --prefix=${aPREFIX}/nagtrap --with-command-user=${aUSER} --with-log-dir=${aPREFIX}/var/log/nagtrap --with-monitoring-group=${aGROUP} --with-monitoring-user=${aUSER} --with-httpd-conf=${aPREFIX}/nagtrap/etc --libexecdir=${aPREFIX}/nagtrap/libexec || return 
+    ./configure --prefix=${aPREFIX}/nagtrap --with-command-user=${aUSER} --with-log-dir=${aPREFIX}/var/log/nagtrap --with-monitoring-group=${aGROUP} --with-monitoring-user=${aUSER} --with-httpd-conf=${aPREFIX}/nagtrap/etc --libexecdir=${aPREFIX}/nagtrap/libexec || return
     make install
     cd ${aPREFIX}/nagtrap/share/include/defines/
     pwd
