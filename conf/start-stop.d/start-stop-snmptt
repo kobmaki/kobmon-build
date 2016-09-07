@@ -1,0 +1,176 @@
+#!/bin/bash
+# Author: Uwe Ebel
+# Version: TBD
+# Project: kobmon-build
+# Info: Start/Stop script for snmptt daemon 
+
+if [ $(basename $0) == "start-stop-snmptt" ]; then
+echo "ERROR DO NOT $0 RUN DIRECT"
+exit 2
+fi
+
+# 
+PROVIDES=${PROVIDES-$(basename ${0})}
+
+# Prefix for snmptt
+SNMPTT_PREFIX=${SNMPTT_PREFIX-/} # default is /
+
+if [[ !  ${SNMPTT_PREFIX} == "*/" ]]; then
+    # fix by adding a / for the prefix
+    SNMPTT_PREFIX=${SNMPTT_PREFIX}"/"
+fi
+
+SNMPTT_LOGDIR=${SNMPTT_LOGDIR-${SNMPTT_PREFIX}var/log/snmptt/} # the logdir
+SNMPTT_LOGFILE=${SNMPTT_LOGFILE-${SNMPTT_LOGDIR}snmptt.log} # the logfile to write/use
+SNMPTT_BIN=${SNMPTT_BIN-$(which snmptt 2>/dev/null)} # where ist snmptt programm
+SNMPTT_BIN_OPTIONS=${SNMPTT_BIN_OPTIONS-""} # DEFAULT NO OPTIONS
+SNMPTT_BINBASENAME=$(basename ${SNMPTT_BIN}) # name the programm without path
+SNMPTT_CONF=${SNMPTT_CONF-${SNMPTT_PREFIX}etc/snmptt/snmptt.conf} # conf file
+SNMPTT_INI=${SNMPTT_INI-$(dirname ${SNMPTT_CONF})/snmptt.ini} # ini file
+
+# run snmptt as user?
+SNMPTT_USR=${SNMPTT_USR-nagios}
+
+export PATH=$(dirname ${SNMPTT_BIN}):$PATH
+
+function decho (){
+if [ "${DEBUG}"!="" ]; then
+    echo $@
+fi
+}
+
+#
+# show the value of a variable
+#
+function kob_show (){
+    echo -ne ${1}": "
+    krc_status "${!1}"
+    test -z "${!1}" && echo
+}
+
+function krc_status ()
+{
+    _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "UNKNOWN $_krc_status_ret "$3
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+# test if run as correct user
+case $1 in 
+start|stop|restart|status|dump|statusextend)
+	       if [ "`whoami`" != "${SNMPTT_USR}" ]; then
+            /bin/su - ${SNMPTT_USR} -c "$0 $@" 2>&1 
+            exit 
+        fi
+        ;;
+*)
+        ;;
+esac
+
+case $1 in
+start)
+	echo -n "Starting "${PROVIDES}".. "
+	aOUT=$(${SNMPTT_BIN} --ini=${SNMPTT_INI} --debugfile=${SNMPTT_LOGDIR}/snmptt-debug.log  --daemon) || false
+	krc_status "${aOUT} OK" "${aOUT} not started maybe already running, try status"
+	 ;;
+
+stop)
+	echo -n "Stopping "${PROVIDES}".. "
+	killall snmptt 2>/dev/null
+	krc_status " stopped" "nothing to stop"
+	;;
+
+restart)
+	echo "Restarting "${PROVIDES}".."
+	$0 stop
+	sleep 2
+	$0 start
+	sleep 2
+	$0 status
+	;;
+
+status)
+	echo -n "Status "${PROVIDES}" "$(basename ${SNMPTT_BIN})
+	aPID=$(pgrep -o -u ${SNMPTT_USR} -x $(basename ${SNMPTT_BIN}))
+        krc_status " running with pid ${aPID} " " not running"
+	;;
+
+statusextend)
+	echo "Statusextend "${PROVIDES}
+	echo -n " basename ${SNMPTT_BIN}: "
+	aPID=$(pgrep -o -u ${SNMPTT_USR} -x $(basename ${SNMPTT_BIN}))
+	krc_status " running with pid ${aPID} " "not running" 
+	echo -n " Logfile: "
+	ls -l ${SNMPTT_LOGFILE}
+	krc_status "OK" "LOGFILE MISSING"
+	;;
+
+dump)
+	echo "Dump infos for events "$${PROVIDES}
+	${SNMPTT_BIN} --dump --ini=${SNMPTT_INI}
+	;;
+
+info) echo "Info "${PROVIDE}
+	for par in PREFIX USR LOGDIR LOGFILE BIN BIN_OPTIONS CONF INI;do
+	    kob_show SNMPTT_${par}
+	done
+	;;
+
+check)
+	echo "Info "${PROVIDES}
+	echo -n "  snmptt: "
+	true
+	krc_status ${SNMPTT_BINBASENAME} ""
+
+	echo -n "  snmptt fullpath: "
+	test -x ${SNMPTT_BIN}
+	krc_status ${SNMPTT_BIN} "MISSING "${SNMPTT_BIN}
+
+	echo -n "  Logdir: "
+	test -x ${SNMPTT_LOGDIR}
+	krc_status ${SNMPTT_LOGDIR} "MISSING DIR "${SNMPTT_LOGDIR}
+
+	
+	echo -n "  Logfile: "
+	test -r ${SNMPTT_LOGFILE}
+	krc_status ${SNMPTT_LOGFILE} "NO LOGFILE "${SNMPTT_LOGFILE}
+	
+	echo -n "  Inifile: "
+	test -r ${SNMPTT_INI}
+	krc_status ${SNMPTT_INI} "NOT READABLE "${SNMPTT_INI}
+
+        echo -n "  Conffile: "
+        test -r ${SNMPTT_CONF}
+        krc_status ${SNMPTT_CONF} "NOT READABLE "${SNMPTT_CONF}
+	;;
+
+validate)
+	echo "Validate "${PROVIDE}
+	echo "TDB"
+	;;
+help)
+	echo "Help "${PROVIDES}
+	echo "info - print out some config file infos"
+	echo "start - start the service"
+	echo "stop - stopps the service"
+	echo "dump - dump the known traps"
+	echo "info - info for configuration"
+	echo "validate - validate the configuration"
+	
+	;;
+*)
+	echo "$0 [start|stop|restart|status|statusextend|check|info|validate|dump|help]"
+	;;
+
+esac
+
