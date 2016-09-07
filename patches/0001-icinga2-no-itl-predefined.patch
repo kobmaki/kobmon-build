@@ -1,0 +1,30 @@
+diff --git a/itl/itl b/itl/itl
+index ad8fbe0..bd59911 100644
+--- a/itl/itl
++++ b/itl/itl
+@@ -22,4 +22,6 @@
+  * configuration templates.
+  */
+ 
++/*
+ include "command-icinga.conf"
++*/
+\ No newline at end of file
+diff --git a/lib/icinga/icinga-itl.conf b/lib/icinga/icinga-itl.conf
+index 769dba4..9a99def 100644
+--- a/lib/icinga/icinga-itl.conf
++++ b/lib/icinga/icinga-itl.conf
+@@ -16,7 +16,7 @@
+  * along with this program; if not, write to the Free Software Foundation     *
+  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.             *
+  ******************************************************************************/
+-
++/*
+ System.assert(Internal.run_with_activation_context(function() {
+ 	var _Internal = Internal.clone()
+ 
+@@ -32,3 +32,4 @@ var methods = [
+ for (method in methods) {
+ 	Internal.remove(method)
+ }
++*/
