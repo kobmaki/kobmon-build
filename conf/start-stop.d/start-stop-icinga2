@@ -41,8 +41,8 @@ function krc_status ()
 #
 function kob_show (){
     echo -ne ${1}": "
-    krc_status ${!1}
-    test -z ${!1} && echo
+    krc_status "${!1}"
+    test -z "${!1}" && echo
 }
 
 # test if an agent is still running
@@ -58,6 +58,7 @@ ICINGA2_PROFILE=${ICINGA2_PROFILE-/etc/profile}
 ICINGA2_CONF=${ICINGA2_CONF-/etc/icinga2/icinga2.conf}
 ICINGA2_DAEMON=${ICINGA2_DAEMON-/usr/sbin/icinga2}
 ICINGA2_PROG=$(basename ${ICINGA2_DAEMON})
+ICINGA2_VERSION=$(${ICINGA2_DAEMON} --version 2>/dev/null|head -1)
 ICINGA2_VARS=${ICINGA2_VARS-/var/cache/icinga2/icinga2.vars}
 ICINGA2_ERROR=${ICINGA2_ERROR-/var/log/icinga2/error.log}
 . ${ICINGA2_PROFILE} >/dev/null 2>&1
@@ -154,7 +155,7 @@ case "$1" in
 
  info)
      echo "Info(ing) ${PROVIDES}"
-     for par in ICINGA2_PROG ICINGA2_HOME ICINGA2_PROFILE ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
+     for par in ICINGA2_PROG ICINGA2_VERSION ICINGA2_USER ICINGA2_HOME ICINGA2_PROFILE ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
 	 kob_show ${par}
      done
      ;;
