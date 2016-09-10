@@ -1,6 +1,7 @@
 #!/bin/bash
-# Author: Uwe Ebel
+# Author: Uwe Ebel (kobmaki @ aol . com)
 # Projekt: kobmon-build
+#          https://github.com/kobmaki/kobmon-build
 # Info: start stop script for grafana
 # Licence: GPL v2
 # 
@@ -27,15 +28,15 @@ krc_status ()
 # some helper functions
 function kob_showvar (){
     echo -n ${1}": "
-    krc_status ${!1}
-    test -z ${!1} && echo
+    krc_status "${!1}"
+    test -z "${!1}" && echo
 }
 
 
 
 if [[ $0 =~ "start-stop-grafana" ]]; then
     false
-    krc_status "" "ERROR DO NOT RUN $0 DIRECT"
+    krc_status "" "ERROR: DO NOT RUN $0 DIRECTLY"
 exit 2
 fi
 
@@ -53,22 +54,28 @@ fi
 # prefix for grafana
 GRAFANA_PREFIX=${GRAFANA_PREFIX-/usr/local/grafana}
 
+GRAFANA_LIBEXEC=${GRAFANA_LIBEXEC-${GRAFANA_PREFIX}/bin}
 # DATA
 GRAFANA_DATA=${GRAFANA_DATA-${GRAFANA_PREFIX}/data}
 # where is the grafana binary?
 GRAFANA_PROG=${GRAFANA_PROG-${GRAFANA_PREFIX}/bin/grafana-server}
 
+
 # path of the grafana config file
 GRAFANA_CFG=${GRAFANA_CFG-${GRAFANA_PREFIX}/conf/defaults.ini}
 
+
 # Which env file should be read
 GRAFANA_ENV=${GRAFANA_ENV-$(dirname ${GRAFANA_CFG} 2>/dev/null)/${GRAFANA_USER}-env.sh}
+
+# GRAFANA version, get it from the server program
+GRAFANA_VERSION=""$(${GRAFANA_PROG} -v )
 
 # Default port 3000
 GRAFANA_PORT=${GRAFANA_PORT-3000}
 
 # Default IP v4
-GRAFANA_IP46=${GRAFANA_IP46-4}
+GRAFANA_CHECK_IP46=${GRAFANA_CHECK_IP46-4}
 
 # set the provides for start/stop
 GRAFANA_PROVIDES=${GRAFANA_PROVIDES-$(basename ${0})}
@@ -208,9 +215,13 @@ case "$1" in
      info)
 	 echo  "Info grafana ("${GRAFANA_PROVIDES}")... "
 	 
-		for par in PROVIDES USER GROUP ENV PREFIX DATA PROG CFG PORT IP46 VAR LIBEXEC CHECK_GRAFANA CHECK_TIMEOUT CHECK_HOST; do
+		for par in PROVIDES USER GROUP ENV PREFIX VERSION DATA PROG CFG PORT VAR LIBEXEC; do
 		    kob_showvar GRAFANA_${par}
 		done
+		echo "Check infos for start/stop ..."
+		for par in CHECK_GRAFANA CHECK_TIMEOUT CHECK_HOST CHECK_IP46; do
+                    kob_showvar GRAFANA_${par}
+                done
 		;;
 
      validate)
