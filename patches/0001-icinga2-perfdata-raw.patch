@@ -11,10 +11,10 @@ index 4f67d75..b672b31 100644
  		default {{{ return true; }}}
  	};
 diff --git a/lib/icinga/externalcommandprocessor.cpp b/lib/icinga/externalcommandprocessor.cpp
-index 9a67c0b..a851518 100644
+index 637f7b4..321dae5 100644
 --- a/lib/icinga/externalcommandprocessor.cpp
 +++ b/lib/icinga/externalcommandprocessor.cpp
-@@ -322,6 +322,7 @@ void ExternalCommandProcessor::ProcessHostCheckResult(double time, const std::ve
+@@ -324,6 +324,7 @@ void ExternalCommandProcessor::ProcessHostCheckResult(double time, const std::ve
  	std::pair<String, String> co = PluginUtility::ParseCheckOutput(arguments[2]);
  	result->SetOutput(co.first);
  	result->SetPerformanceData(PluginUtility::SplitPerfdata(co.second));
