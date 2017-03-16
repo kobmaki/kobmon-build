@@ -1,0 +1,309 @@
+#!/bin/bash
+# Author: Uwe Ebel (kobmaki)
+# Projekt: kobmon-build
+# Info: start stop script for redis
+# Licence: GPL v2
+# 
+
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+
+
+if [[ $0 =~ "start-stop-redis" && ! "$1" =~ "wrapper"  ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECTLY. ONLY OPTION wrapper IS ALLOWED. TRY $0 wrapper"
+    exit 2
+fi
+
+function is_running()
+{
+    pgrep -o -u ${REDIS_USER} -x $(basename ${REDIS_PROG}) 2>/dev/null >/dev/null
+
+    return $?
+}
+
+# FIX for unset home, so no profile was read
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null >/dev/null
+fi
+
+# prefix for redis
+REDIS_PREFIX=${REDIS_PREFIX-}
+
+# where is the redis (redis-server) binary?
+REDIS_PROG=${REDIS_PROG-${REDIS_PREFIX}/usr/bin/redis-server}
+REDIS_PROG_BASENAME=${REDIS_PROG_BASENAME-$(basename ${REDIS_PROG})}
+# path of the redis config file
+REDIS_CFG=${REDIS_CFG-${REDIS_PREFIX}/etc/redis/redis.conf}
+
+# Which env file should be read
+REDIS_ENV=${REDIS_ENV-$(dirname ${REDIS_CFG} 2>/dev/null)/${REDIS_USER}-env.sh}
+
+# Default port 6379
+REDIS_PORT=${REDIS_PORT-6379}
+
+
+# set the provides for start/stop
+REDIS_PROVIDES=${REDIS_PROVIDES-$(basename ${0})}
+
+REDIS_VAR=${REDIS_VAR-${REDIS_PREFIX}/var/log/redis}
+
+# where is the check_redis
+REDIS_CHECK_REDIS=${REDIS_CHECK_REDIS-${REDIS_PREFIX}/bin/check_redis}
+
+# if we run a check, which host should we use
+REDIS_CHECK_HOST=${REDIS_CHECK_HOST-localhost}
+
+# default check_command is empty
+# if you run this check against the running redis daemon you get the version of the daemon
+REDIS_CHECK_COMMAND=""
+
+if [[ "$1" =~ "wrapper" ]]; then
+    REDIS_USER=${REDIS_USER-$(id -un)}
+fi
+
+if [[ ! "$1" =~ "wrapper" && ( -z ${REDIS_USER} ) ]]; then 
+    echo "WRONG KONFIGURATION, REDIS_USER empty"; 
+    exit 2; 
+fi
+
+function config_check () {
+#        $REDIS_PROG -v ${REDIS_CFG} > /dev/null 2>&1
+	 test -x ${REDIS_PROG} || ( echo "no binary ${REDIS_PROG}" && return 1 )
+        if [[ -f ${REDIS_CFG} && -r ${REDIS_CFG} ]]; then
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${REDIS_USER} -x $(basename ${REDIS_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${REDIS_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|validate) 
+        if [ "`whoami`" != "${REDIS_USER}" ]; then
+            su -l  ${REDIS_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${REDIS_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+REDIS_GROUP=${REDIS_GROUP-$(id -gn ${REDIS_USER})}
+
+case "$1" in
+
+    start)
+	test -f ${REDIS_ENV} && test -r ${REDIS_ENV} && . ${REDIS_ENV}
+	
+	echo -n "Starting "${REDIS_PROVIDES}" (redis) as user ${REDIS_USER} "
+	aPID=$(pgrep -o -u ${REDIS_USER} -x ${REDIS_PROG_BASENAME} 2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	   cd ${REDIS_PREFIX}
+          ${REDIS_PROG}  ${REDIS_CFG} > ${REDIS_VAR}/start-stop.log 2>&1 &
+
+        else
+          echo "- Error in configuration files ${REDIS_CFG}"
+	  false
+          krc_status "" " - please read ${REDIS_VAR}/config.redis.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${REDIS_USER} -x ${REDIS_PROG_BASENAME} 2>/dev/null)
+	 krc_status  "started as user ${REDIS_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${REDIS_PROVIDES}" (redis) as user "${REDIS_USER}" "
+	aPID=$(pgrep -o -u ${REDIS_USER}  -x ${REDIS_PROG_BASENAME}  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	
+	 while is_running; do
+	        kill -TERM $(pgrep -o  -x ${REDIS_PROG_BASENAME} -u ${REDIS_USER} 2>/dev/null)
+		  echo -n '.'
+			   sleep 1
+        done;
+         krc_status " stopped PID ${aPID}"
+	;;
+
+    restart)
+	$0 stop
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${REDIS_PROVIDES}" ("${REDIS_PROG_BASENAME}")... "
+	aPID=$(pgrep -o -u ${REDIS_USER} -x ${REDIS_PROG_BASENAME})
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+    check)
+	echo "Check redis ("${REDIS_PROVIDES}")... "
+	aPID=$(pgrep -o -u ${REDIS_USER} -x $(basename ${REDIS_PROG}))
+	is_running
+        krc_status "running with PID ${aPID}" "not running"
+	echo "TODO, usage disk"
+	;;
+     info)
+	 echo  "Info redis ("${REDIS_PROVIDES}")... "
+	 
+		for par in PROVIDES USER GROUP ENV PREFIX  PROG PROG_BASENAME CFG PORT VAR CHECK_REDIS CHECK_HOST; do
+		    kob_showvar REDIS_${par}
+		done
+		;;
+
+     validate)
+		echo "Validate ${REDIS_PROVIDES} (redis)"
+
+		test -f ${REDIS_ENV}
+		krc_status "OK - environment file ${REDIS_ENV} exist" "Error envfile ${REDIS_ENV} not exist"
+		
+		test -f ${REDIS_PROG}
+		krc_status "OK - programm ${REDIS_PROG} exist and a file" "Error - program ${REDIS_PROG}  do not exist"
+		
+		test -x ${REDIS_PROG}
+		krc_status "OK - program ${REDIS_PROG} executeable" "Error - program ${REDIS_PROG} not executeable"
+
+		test -f ${REDIS_CFG}
+		krc_status "OK - file config ${REDIS_CFG} exist" "Error - configfile ${REDIS_CFG} not exist"
+
+		test -r ${REDIS_CFG}
+		krc_status "OK - readable configfile ${REDIS_CFG} " "Error - configfile ${REDIS_CFG} not readable"
+		
+		test -f ${REDIS_CHECK_REDIS}
+		krc_status "OK - check_redis ${REDIS_CHECK_REDIS} exist" "Error - no check_redis available"
+
+		test -x ${REDIS_CHECK_REDIS}
+		krc_status "OK - check_redis ${REDIS_CHECK_REDIS} executable" "Error - no check_redis ${REDIS_CHECK_REDIS}  not executable"
+
+		aRun=""$(${REDIS_CHECK_REDIS} -H ${REDIS_CHECK_HOST} -p ${REDIS_PORT} ${REDIS_IP46} -t 2  2>/dev/null)
+		krc_status "OK - redis allow connect to ${REDIS_CHECK_HOST} ${aRun}" "Error - redis not acception connection, ${aRun}" "Unknown - redisd not accepting connection"
+
+		# validate conf by emulate 
+		#echo "| ${REDIS_PROG} -c ${REDIS_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${REDIS_CFG} contains errors"
+
+		;;
+
+        redis)
+	  shift
+	  exec ${REDIS_PROG} $@
+	;;
+	wrapper)
+
+	    cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    redis for $(id -un)
+### END INIT INFO                                  
+PROVIDES=\$(basename \$0)
+REDIS_USER=${REDIS_USER-$(id -un)}
+REDIS_GROUP=${REDIS_GROUP-$(id -gn ${REDIS_USER})}
+
+REDIS_PREFIX=${REDIS_PREFIX-/}
+REDIS_CFG=${REDIS_CFG-/etc/nagios/redis.cfg}
+# DEFAULT, 6379
+#REDIS_PORT=${REDIS_PORT-6379}
+REDIS_START_STOP=${REDIS_START_STOP-/etc/start-stop.d/start-stop-redis}
+# Where is the redis programm?
+REDIS_PROG=${REDIS_PROG-$REDIS_PREFIX-/bin/redis}
+# Where is the check_redis
+
+#
+REDIS_VAR=${REDIS_VAR-/var/log/${NARPE_USER}}
+
+. \${REDIS_START_STOP}
+EOF
+	    ;;
+	
+	help)
+	    echo "Helping ${REDIS_PROVIDES} (redis)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+status - status of the daemon
+info - show info about configuration
+validate - validate the configuration and environment
+check - check the running daemon
+redis - call redis
+wrapper - output a new start-stop wrapper in systemv style
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|check|info|validate|redis|wrapper]"
+        exit 1
+        ;;
+esac
+
+
