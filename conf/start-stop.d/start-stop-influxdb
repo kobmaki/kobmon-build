@@ -1,0 +1,306 @@
+#!/bin/bash
+# Author: Uwe Ebel (kobmaki)
+# Projekt: kobmon-build
+# Info: start stop script for influxdb
+# Licence: GPL v2
+# 
+
+
+# function krc_status
+krc_status ()
+{
+    local _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "$(tput bold setaf 13 2>/dev/null)UNKNOWN ($_krc_status_ret) $3$(tput sgr0 2>/dev/null)"
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+
+# some helper functions
+function kob_showvar (){
+    echo -n ${1}": "
+    krc_status ${!1}
+    test -z ${!1} && echo
+}
+
+
+
+if [[ $0 =~ "start-stop-influxdb" && ! "$1" =~ "wrapper"  ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECTLY. ONLY OPTION wrapper IS ALLOWED. TRY $0 wrapper"
+    exit 2
+fi
+
+function is_running()
+{
+    pgrep -o -u ${INFLUXDB_USER} -x $(basename ${INFLUXDB_PROG}) 2>/dev/null >/dev/null
+
+    return $?
+}
+
+# FIX for unset home, so no profile was read
+if [ -z  $HOME ]; then
+    . /etc/profile 2>/dev/null >/dev/null
+fi
+
+# prefix for influxdb
+INFLUXDB_PREFIX=${INFLUXDB_PREFIX-}
+
+# where is the influxdb (influxd) binary?
+INFLUXDB_PROG=${INFLUXDB_PROG-${INFLUXDB_PREFIX}/usr/bin/influxd}
+INFLUXDB_PROG_BASENAME=${INFLUXDB_PROG_BASENAME-$(basename ${INFLUXDB_PROG})}
+# path of the influxdb config file
+INFLUXDB_CFG=${INFLUXDB_CFG-${INFLUXDB_PREFIX}/etc/influxdb/influxdb.conf}
+
+# Which env file should be read
+INFLUXDB_ENV=${INFLUXDB_ENV-$(dirname ${INFLUXDB_CFG} 2>/dev/null)/${INFLUXDB_USER}-env.sh}
+
+# Default port 8083
+INFLUXDB_PORT=${INFLUXDB_PORT-8083}
+
+
+# set the provides for start/stop
+INFLUXDB_PROVIDES=${INFLUXDB_PROVIDES-$(basename ${0})}
+
+INFLUXDB_VAR=${INFLUXDB_VAR-${INFLUXDB_PREFIX}/var/log/influxdb}
+
+# where is the check_influxdb
+INFLUXDB_CHECK_INFLUXDB=${INFLUXDB_CHECK_INFLUXDB-${INFLUXDB_PREFIX}/bin/check_influxdb}
+
+# if we run a check, which host should we use
+INFLUXDB_CHECK_HOST=${INFLUXDB_CHECK_HOST-localhost}
+
+# default check_command is empty
+# if you run this check against the running influxdb daemon you get the version of the daemon
+INFLUXDB_CHECK_COMMAND=""
+
+if [[ "$1" =~ "wrapper" ]]; then
+INFLUXDB_USER=${INFLUXDB_USER-$(id -un)}
+fi
+
+if [[ ! "$1" =~ "wrapper" && ( -z ${INFLUXDB_USER} ) ]]; then echo "WRONG KONFIGURATION, INFLUXDB_USER empty"; exit 2; fi
+
+function config_check () {
+#        $INFLUXDB_PROG -v ${INFLUXDB_CFG} > /dev/null 2>&1
+	 test -x ${INFLUXDB_PROG} || ( echo "no binary ${INFLUXDB_PROG}" && return 1 )
+        if [[ -f ${INFLUXDB_CFG} && -r ${INFLUXDB_CFG} ]]; then
+          return 0
+        else
+          return 1
+        fi
+}
+
+function get_pid () {
+ 	 aPID=$(pgrep -o -u ${INFLUXDB_USER} -x $(basename ${INFLUXDB_PROG}) 2>/dev/null)
+	 aReturn=$?
+	 echo -n ${aPID}
+	 return ${aReturn}
+}
+
+
+if [ `id -u` -ne 0 ]; then
+# here check if run as the correct user
+    if [ "`id -nu`" !=  "${INFLUXDB_USER}" ]; then
+        sudo $0 $@
+        exit
+        fi
+
+fi
+
+
+case "$1" in 
+     start|stop|status|restart|info|validate) 
+        if [ "`whoami`" != "${INFLUXDB_USER}" ]; then
+            su -l  ${INFLUXDB_USER} -c "$0 $@" 2>&1 
+            exit $?
+        fi
+        ;;
+     *)
+	# everthing fine
+	;;
+esac
+
+
+if [ `id -u` -eq 0 ]; then
+    /bin/su - ${INFLUXDB_USER} -c "$0 $@ "
+    exit ${aReturn}
+fi
+
+# read an env file if it exist
+# special required 
+
+INFLUXDB_GROUP=${INFLUXDB_GROUP-$(id -gn ${INFLUXDB_USER})}
+
+case "$1" in
+
+    start)
+	test -f ${INFLUXDB_ENV} && test -r ${INFLUXDB_ENV} && . ${INFLUXDB_ENV}
+	
+	echo -n "Starting "${INFLUXDB_PROVIDES}" (influxdb) as user ${INFLUXDB_USER} "
+	aPID=$(pgrep -o -u ${INFLUXDB_USER} -x ${INFLUXDB_PROG_BASENAME} 2>/dev/null)
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with PID ${aPID}"
+	    exit 0
+	fi
+
+	config_check
+        if [ $? -eq 0   ]; then
+	   cd ${INFLUXDB_PREFIX}
+          ${INFLUXDB_PROG} -config ${INFLUXDB_CFG} > ${INFLUXDB_VAR}/start-stop.log 2>&1 &
+
+        else
+          echo "- Error in configuration files ${INFLUXDB_CFG}"
+	  false
+          krc_status "" " - please read ${INFLUXDB_VAR}/config.influxdb.err"
+	  exit 2
+        fi
+	sleep 1
+	 aPID=$(pgrep -o -u ${INFLUXDB_USER} -x ${INFLUXDB_PROG_BASENAME} 2>/dev/null)
+	 krc_status  "started as user ${INFLUXDB_USER} with PID ${aPID}" "could not start"
+	;;
+
+    stop)
+	echo -n "Stopping "${INFLUXDB_PROVIDES}" (influxdb) as user "${INFLUXDB_USER}" "
+	aPID=$(pgrep -o -u ${INFLUXDB_USER}  -x ${INFLUXDB_PROG_BASENAME}  2>/dev/null)
+	if [ "${aPID}" == "" ]; then
+	   krc_status "already stopped"
+	   exit 
+	fi
+	
+	 while is_running; do
+	        kill -TERM $(pgrep -o  -x ${INFLUXDB_PROG_BASENAME} -u ${INFLUXDB_USER} 2>/dev/null)
+		  echo -n '.'
+			   sleep 1
+        done;
+         krc_status " stopped PID ${aPID}"
+	;;
+
+    restart)
+	$0 stop
+        $0 start
+	sleep 1
+	$0 status
+	krc_status
+        ;;
+
+    status)
+	echo -n "Status "${INFLUXDB_PROVIDES}" ("${INFLUXDB_PROG_BASENAME}")... "
+	aPID=$(pgrep -o -u ${INFLUXDB_USER} -x ${INFLUXDB_PROG_BASENAME})
+	is_running
+	krc_status "running with PID ${aPID}" "not running"
+        ;;
+
+    check)
+	echo "Check influxdb ("${INFLUXDB_PROVIDES}")... "
+	aPID=$(pgrep -o -u ${INFLUXDB_USER} -x $(basename ${INFLUXDB_PROG}))
+	is_running
+        krc_status "running with PID ${aPID}" "not running"
+	echo "TODO, usage disk"
+	;;
+     info)
+	 echo  "Info influxdb ("${INFLUXDB_PROVIDES}")... "
+	 
+		for par in PROVIDES USER GROUP ENV PREFIX  PROG PROG_BASENAME CFG PORT VAR CHECK_INFLUXDB CHECK_HOST; do
+		    kob_showvar INFLUXDB_${par}
+		done
+		;;
+
+     validate)
+		echo "Validate ${INFLUXDB_PROVIDES} (influxdb)"
+
+		test -f ${INFLUXDB_ENV}
+		krc_status "OK - environment file ${INFLUXDB_ENV} exist" "Error envfile ${INFLUXDB_ENV} not exist"
+		
+		test -f ${INFLUXDB_PROG}
+		krc_status "OK - programm ${INFLUXDB_PROG} exist and a file" "Error - program ${INFLUXDB_PROG}  do not exist"
+		
+		test -x ${INFLUXDB_PROG}
+		krc_status "OK - program ${INFLUXDB_PROG} executeable" "Error - program ${INFLUXDB_PROG} not executeable"
+
+		test -f ${INFLUXDB_CFG}
+		krc_status "OK - file config ${INFLUXDB_CFG} exist" "Error - configfile ${INFLUXDB_CFG} not exist"
+
+		test -r ${INFLUXDB_CFG}
+		krc_status "OK - readable configfile ${INFLUXDB_CFG} " "Error - configfile ${INFLUXDB_CFG} not readable"
+		
+		test -f ${INFLUXDB_CHECK_INFLUXDB}
+		krc_status "OK - check_influxdb ${INFLUXDB_CHECK_INFLUXDB} exist" "Error - no check_influxdb available"
+
+		test -x ${INFLUXDB_CHECK_INFLUXDB}
+		krc_status "OK - check_influxdb ${INFLUXDB_CHECK_INFLUXDB} executable" "Error - no check_influxdb ${INFLUXDB_CHECK_INFLUXDB}  not executable"
+
+		aRun=""$(${INFLUXDB_CHECK_INFLUXDB} -H ${INFLUXDB_CHECK_HOST} -p ${INFLUXDB_PORT} ${INFLUXDB_IP46} -t 2  2>/dev/null)
+		krc_status "OK - influxdb allow connect to ${INFLUXDB_CHECK_HOST} ${aRun}" "Error - influxdb not acception connection, ${aRun}" "Unknown - influxdbd not accepting connection"
+
+		# validate conf by emulate 
+		#echo "| ${INFLUXDB_PROG} -c ${INFLUXDB_CFG} -i 2>/dev/null"
+	        krc_status "OK - valid configuration valid" "Error - configfile ${INFLUXDB_CFG} contains errors"
+
+		;;
+
+        influxdb)
+	  shift
+	  exec ${INFLUXDB_PROG} $@
+	;;
+	wrapper)
+
+	    cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    influxdb for $(id -un)
+### END INIT INFO                                  
+PROVIDES=\$(basename \$0)
+INFLUXDB_USER=${INFLUXDB_USER-$(id -un)}
+INFLUXDB_GROUP=${INFLUXDB_GROUP-$(id -gn ${INFLUXDB_USER})}
+
+INFLUXDB_PREFIX=${INFLUXDB_PREFIX-/}
+INFLUXDB_CFG=${INFLUXDB_CFG-/etc/nagios/influxdb.cfg}
+# DEFAULT, 8083
+#INFLUXDB_PORT=${INFLUXDB_PORT-8083}
+INFLUXDB_START_STOP=${INFLUXDB_START_STOP-/etc/start-stop.d/start-stop-influxdb}
+# Where is the influxdb programm?
+INFLUXDB_PROG=${INFLUXDB_PROG-$INFLUXDB_PREFIX-/bin/influxdb}
+# Where is the check_influxdb
+
+#
+INFLUXDB_VAR=${INFLUXDB_VAR-/var/log/${NARPE_USER}}
+
+. \${INFLUXDB_START_STOP}
+EOF
+	    ;;
+	
+	help)
+	    echo "Helping ${INFLUXDB_PROVIDES} (influxdb)"
+	    cat <<EOF
+start - start the daemon
+stop - stop the daemon
+restart - restart the daemon
+status - status of the daemon
+info - show info about configuration
+validate - validate the configuration and environment
+check - check the running daemon
+influxdb - call influxdb
+wrapper - output a new start-stop wrapper in systemv style
+EOF
+	    ;;
+	*)
+        echo "Usage: $0 [start|stop|help|status|restart|check|info|validate|influxdb|wrapper]"
+        exit 1
+        ;;
+esac
+
+
