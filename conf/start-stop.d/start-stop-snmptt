@@ -2,14 +2,55 @@
 # Author: Uwe Ebel
 # Version: TBD
 # Project: kobmon-build
-# Info: Start/Stop script for snmptt daemon 
+# Info: Start/Stop script for snmptt daemon
 
-if [ $(basename $0) == "start-stop-snmptt" ]; then
-echo "ERROR DO NOT $0 RUN DIRECT"
-exit 2
+#
+# debug output, only if the variable DEBUG is set
+#
+function decho (){
+if [ "${DEBUG}"!="" ]; then
+    echo $@
+fi
+}
+
+#
+# show the value of a variable
+#
+function kob_show (){
+    echo -ne ${1}": "
+    krc_status "${!1}"
+    test -z "${!1}" && echo
+}
+
+#
+# show a status output in color
+#
+function krc_status ()
+{
+    _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "UNKNOWN $_krc_status_ret "$3
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+# check if run direct
+# if directly is run then only the option wrapper is allowed
+if [[ $(basename $0) =~ "start-stop-snmptt" && ! "$1" =~ "wrapper"  ]]; then
+    false
+    krc_status "" "ERROR DO NOT RUN $0 DIRECTLY. ONLY OPTION wrapper IS ALLOWED. TRY $0 wrapper"
+    exit 2
 fi
 
-# 
+# what do we provides? Default is the name of the script
 PROVIDES=${PROVIDES-$(basename ${0})}
 
 # Prefix for snmptt
@@ -39,31 +80,6 @@ if [ "${DEBUG}"!="" ]; then
 fi
 }
 
-#
-# show the value of a variable
-#
-function kob_show (){
-    echo -ne ${1}": "
-    krc_status "${!1}"
-    test -z "${!1}" && echo
-}
-
-function krc_status ()
-{
-    _krc_status_ret=$?
-    case ${_krc_status_ret} in
-    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
-            [[ -z $1 ]] ||  echo
-    ;;
-    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
-            [[  -z $2 ]] || echo
-       ;;
-    *)
-            echo "UNKNOWN $_krc_status_ret "$3
-      ;;
-   esac
-    return $_krc_status_ret
-}
 
 # test if run as correct user
 case $1 in 
@@ -168,6 +184,30 @@ help)
 	echo "validate - validate the configuration"
 	
 	;;
+wrapper)
+	cat <<EOF
+#!$(which bash)
+### BEGIN INIT INFO
+# Provides: $(basename $0)
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    snmptt for $(id -un)
+### END INIT INFO
+PROVIDES=\$(basename \$0)
+SNMPTT_USER=${SNMPTT_USER-$(id -un)}
+SNMPTT_GROUP=${SNMPTT_GROUP-$(id -gn ${SNMPTT_USER})}
+
+SNMPTT_PREFIX=${SNMPTT_PREFIX-/}
+SNMPTT_CFG=${SNMPTT_CFG-/etc/nagios/redis.cfg}
+SNMPTT_START_STOP=${SNMPTT_START_STOP-/etc/start-stop.d/start-stop-snmptt}
+# Where is the snmptt programm?
+SNMPTT_BIN=${SNMPTT_BIN-$SNMPTT_PREFIX-/bin/snmptt}
+. \${SNMPTT_START_STOP}
+EOF
+;;
+
 *)
 	echo "$0 [start|stop|restart|status|statusextend|check|info|validate|dump|help]"
 	;;
