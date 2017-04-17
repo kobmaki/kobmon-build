@@ -214,7 +214,13 @@ case "$1" in
 	 
 		for par in PROVIDES USER GROUP ENV PREFIX  PROG PROG_BASENAME CFG PORT VAR CHECK_REDIS CHECK_HOST; do
 		    kob_showvar REDIS_${par}
+		    if [ "$par" == "PROG" ]; then
+			echo -n "REDIS_VERSION: "
+		      aVersion="$(${REDIS_PROG} -v)"
+		      krc_status "${aVersion}" "UNKOWN"
+		    fi
 		done
+
 		;;
 
      validate)
