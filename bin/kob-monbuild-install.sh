@@ -390,19 +390,20 @@ function buildIcinga2 {
     mkdir build >/dev/null 2>&1
     cd build
     krc_status "... cmake start"
-    cmake ../ -DCMAKE_INSTALL_PREFIX=${aPREFIX}/icinga2 -DCMAKE_INSTALL_SYSCONFDIR=${aPREFIX}/conf/ \
+    cmake ../ -DCMAKE_INSTALL_PREFIX=${aPREFIX}/icinga2 -DCMAKE_INSTALL_SYSCONFDIR=${aPREFIX}/conf \
 	  -DICINGA2_RUNDIR=/dev/shm/$(id -nu)/run \
 	  -DICINGA2_USER=$(id -nu) -DICINGA2_GROUP=$(id -ng) \
 	  -DCMAKE_INSTALL_LOCALSTATEDIR=${aPREFIX}/var \
 	  -DICINGA2_COMMAND_GROUP=$(id -ng) \
 	  -DICINGA2_SYSCONFIGFILE=${aPREFIX}/conf/icinga2/sysconfig/icinga2 \
-	  -DICINGA2_WITH_PGSQL=OFF \
-	  -DICINGA2_WITH_MYSQL=ON \
+	  -DICINGA2_WITH_PGSQL=${ICINGA2_WITH_PGSQL-OFF} \
+	  -DICINGA2_WITH_MYSQL=${ICINGA2_WITH_MYSQL-ON} \
 	  -DBUILDTESTING=FALSE \
-	  -DICINGA2_WITH_HELLO=FALSE \
+	  -DICINGA2_WITH_HELLO=${ICINGA2_WITH_HELLO-FALSE} \
+	  -DICINGA2_WITH_REDIS=${ICINGA2_WITH_REDIS-ON} \
 	  -DBoost_NO_BOOST_CMAKE=TRUE \
-	  -DICINGA2_UNITY_BUILD=ON \
-	  -DICINGA2_WITH_TESTS=OFF \
+	  -DICINGA2_UNITY_BUILD=${ICINGA2_UNITY_BUILD-OFF} \
+	  -DICINGA2_WITH_TESTS=${ICINGA2_WITH_TESTS-OFF} \
 	  -Wno-dev
 
     krc_status "... cmake finished" "... cmake error" || return
