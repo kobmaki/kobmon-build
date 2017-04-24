@@ -11,6 +11,10 @@ This project is maintained by Uwe Ebel (kobmaki) on [https://github.com/kobmaki/
 * kob-monbuild-install.sh - build/compile
 * kob-icingaweb2-module-create - creating a frame for icingaweb2 module 
 
+## Tools
+
+* json2xml - convert json to xml from stdin
+
 ## Documentation
 
 You found the documention under [doc/](doc/) and start with page [documentation](doc/00-A-documentation.md).
