@@ -19,18 +19,54 @@
 #include <boost/property_tree/json_parser.hpp>  
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
-// #include <boost/log/trivial.hpp>
-#include <boost/program_options.hpp>
-
 using namespace std;
+
+int showHelp(){
+  std::cout << "json2xml [-h|-v|-s <xml-style-link>]\n";
+}
+
+int showVersion(){
+  std::cout << "json2xml - version 0.1, kobmon-build, http://github.com/kobmaki/kobmon-build/\n";
+}
 
 int main (int argc, char **argv) {
 
   std::string aXmlStyle = "utf-8";
+  std::string aOption = ""; // default empty
 
-  // first option is the style sheet
-  if (argc > 1 ) {
-    aXmlStyle=argv[1];
+  if ( argc > 1 ) {
+    aOption=argv[1];
+  }
+
+  // test all supported options
+  if ( argc > 1
+       && !( aOption.compare("-h") == 0 // help
+	     || aOption.compare("-s") == 0 // style
+	     || aOption.compare("-v") == 0 // version
+	   )
+      ) {
+    std::cerr << "unsupported option, try json2xml -h\n";
+    return 1;
+  }
+
+  if (aOption.compare("-h") == 0 ){
+    showHelp();
+    return 0;
+  }
+
+  if (aOption.compare("-v") == 0 ){
+    showVersion();
+    return 0;
+  }
+
+  if (argc < 3 && aOption.compare("-s") == 0 ){
+    std::cerr << "required style add\n";
+    return 1;
+  }
+
+  // second option is the style sheet
+  if ( argc > 2 && aOption.compare("-s") == 0 ) {
+    aXmlStyle=argv[2];
     aXmlStyle="utf-8\"?>\n<?xml-stylesheet type=\"text/xsl\" href=\""+aXmlStyle;
   }
 
@@ -41,14 +77,13 @@ int main (int argc, char **argv) {
     }
   catch(boost::exception const&  ex)
     {
-      // BOOST_LOG_TRIVIAL(error) << "Error json2xml reading json format";
-      std::cerr << "Error json2xml reading json format";
+      std::cerr << "Error json2xml reading json format\n";
       return 1;
     }
 
   // set the style info, simple "trick"
    boost::property_tree::xml_writer_settings<char> settings('\t', 1, aXmlStyle);
-   //   boost::property_tree::write_xml(std::cout, pt, boost::property_tree::xml_parser::trim_whitespace);
    boost::property_tree::write_xml(std::cout, pt, settings);
+
   return 0;
 }
