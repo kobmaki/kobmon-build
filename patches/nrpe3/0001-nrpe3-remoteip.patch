@@ -1,0 +1,44 @@
+diff --git a/include/nrpe.h b/include/nrpe.h
+index a31d6da..d0a4fe8 100644
+--- a/include/nrpe.h
++++ b/include/nrpe.h
+@@ -54,7 +54,7 @@ void init_handle_conn(void);
+ int handle_conn_ssl(int sock, void *ssl_ptr);
+ int read_packet(int sock, void *ssl_ptr, v2_packet *v2_pkt, v3_packet **v3_pkt);
+ void free_memory(void);
+-int my_system(char*, int, int*, char**);	/* executes a command via popen(), but also protects against timeouts */
++int my_system(char*, char*, int, int*, char**);	/* executes a command via popen(), but also protects against timeouts */
+ void my_system_sighandler(int);				/* handles timeouts when executing commands via my_system() */
+ void my_connection_sighandler(int);			/* handles timeouts of connection */
+ int drop_privileges(char *,char *, int);
+diff --git a/src/nrpe.c b/src/nrpe.c
+index 3c25f68..03ffac4 100644
+--- a/src/nrpe.c
++++ b/src/nrpe.c
+@@ -1714,7 +1714,7 @@ void handle_connection(int sock)
+ 
+ 			/* run the command */
+ 			strcpy(buffer, "");
+-			result = my_system(processed_command, command_timeout, &early_timeout, &send_buff);
++			result = my_system(processed_command, remote_host, command_timeout, &early_timeout, &send_buff);
+ 
+ 			if (debug == TRUE)	/* log debug info */
+ 				logit(LOG_DEBUG, "Command completed with return code %d and output: %s",
+@@ -2091,7 +2091,7 @@ void free_memory(void)
+ }
+ 
+ /* executes a system command via popen(), but protects against timeouts */
+-int my_system(char *command, int timeout, int *early_timeout, char **output)
++int my_system(char *command, char *remoteip, int timeout, int *early_timeout, char **output)
+ {
+ 	FILE     *fp;
+ 	pid_t     pid;
+@@ -2141,6 +2141,8 @@ int my_system(char *command, int timeout, int *early_timeout, char **output)
+ 		return STATE_UNKNOWN;
+ 	}
+ 
++        setenv("NRPE_REMOTEIP",remoteip,1); /* add remote call ip to env */
++
+ 	/* execute the command in the child process */
+ 	if (pid == 0) {
+ 		SETEUID(0);				/* get root back so the next call works correctly */
