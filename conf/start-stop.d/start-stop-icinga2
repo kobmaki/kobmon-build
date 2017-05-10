@@ -61,21 +61,34 @@ ICINGA2_PROG=$(basename ${ICINGA2_DAEMON})
 ICINGA2_VERSION=$(${ICINGA2_DAEMON} --version 2>/dev/null|head -1)
 ICINGA2_VARS=${ICINGA2_VARS-/var/cache/icinga2/icinga2.vars}
 ICINGA2_ERROR=${ICINGA2_ERROR-/var/log/icinga2/error.log}
+ICINGA2_PIDPATH=${ICINGA2_PIDPATH-$(${ICINGA2_DAEMON} variable get PidPath)}
 . ${ICINGA2_PROFILE} >/dev/null 2>&1
 
 #env > /tmp/$(id -un).$1.profile.env
+
+function getRunningPid () {
+local aReturn
+local aPid
+aPid=$(cat ${ICINGA2_PIDPATH} 2>/dev/null) || aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
+aReturn=$?
+ps -p ${aPid} >/dev/null 2>/dev/null || ( aReturn=$? && aPid= )
+echo -n ${aPid};
+return ${aReturn}
+}
 
 case "$1" in
 
     start)
 	echo -n "Starting $PROVIDES ... "
-	aPID=$(pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG})
+	#aPID=$(pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG})
+	aPID=$(getRunningPid)
 	if [ "${aPID}" != "" ]; then
 	    krc_status " already running as user ${ICINGA2_USER}  with PID ${aPID}" ""
 	    else 
      ${ICINGA2_DAEMON} daemon -c ${ICINGA2_CONF} -d >> ${ICINGA2_ERROR} 2>&1 &
      sleep 1
-     aPID=$(pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG})
+     #aPID=$(pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG})
+     aPID=$(getRunningPid)
 
        krc_status " as user ${ICINGA2_USER} with PID ${aPID}" "not started, try validate for errors"
       fi
@@ -83,14 +96,20 @@ case "$1" in
 
  stop)
      echo -n 'Stopping '$PROVIDES' as user '${ICINGA2_USER}' ... '
-     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
+     #aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
+     #aPID=$(cat ${ICINGA2_PIDPATH} 2>/dev/null) || aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
+     aPID=$(getRunningPid)
+     #$? && echo -n " with pid "${aPID}" "
+
      while is_running; do
-	 kill -TERM $(pgrep -o  -x ${ICINGA2_PROG} -u ${ICINGA2_USER}) 2>/dev/null
+#	 kill -SIGTERM $(pgrep -o  -x ${ICINGA2_PROG} -u ${ICINGA2_USER}) 2>/dev/null
+	 kill -SIGTERM $(getRunningPid) >/dev/null 2>/dev/null
 	 echo -n '.'
 	 sleep 1
      done;
-     
-     krc_status " stopped pid ${aPID}"
+     unlink ${ICINGA2_PIDPATH} 2>/dev/null
+     true
+     krc_status " stopped pid ${aPID}" 
      ;;
 
  restart)
@@ -109,18 +128,18 @@ case "$1" in
 	 false
 	 krc_status "" "could not reload as validation error"
      fi
-     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG})
-     kill -HUP ${aPID}
+     aPID=$(getRunningPid)
+     kill -HUP ${aPID} >/dev/null 2>/dev/null 
      sleep 1
      $0 status
-     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG})
+     aPID=$(getRunningPid)
      echo -n "Reloading ${PROVIDES} "
      krc_status "reload now with PID ${aPID}"
      ;;
  
  status)
      echo -n "Status ${PROVIDES}"
-     aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG})
+     aPID=$(getRunningPid)
      krc_status " running as user ${ICINGA2_USER} with PID ${aPID}" " not running as user ${ICINGA2_USER}"
      ;;
 
@@ -155,7 +174,7 @@ case "$1" in
 
  info)
      echo "Info(ing) ${PROVIDES}"
-     for par in ICINGA2_PROG ICINGA2_VERSION ICINGA2_USER ICINGA2_HOME ICINGA2_PROFILE ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
+     for par in ICINGA2_PROG ICINGA2_VERSION ICINGA2_PIDPATH ICINGA2_USER ICINGA2_HOME ICINGA2_PROFILE ICINGA2_DAEMON ICINGA2_SYSCONFIG ICINGA2_CONF ICINGA2_VARS ICINGA2_ERROR; do
 	 kob_show ${par}
      done
      ;;
