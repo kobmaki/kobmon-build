@@ -69,7 +69,7 @@ ICINGA2_PIDPATH=${ICINGA2_PIDPATH-$(${ICINGA2_DAEMON} variable get PidPath)}
 function getRunningPid () {
 local aReturn
 local aPid
-aPid=$(cat ${ICINGA2_PIDPATH} 2>/dev/null) || aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
+aPid=$(pgrep -F ${ICINGA2_PIDPATH} 2>/dev/null) || aPID=$(pgrep -o -u ${ICINGA2_USER}  -x ${ICINGA2_PROG}) 2>/dev/null
 aReturn=$?
 ps -p ${aPid} >/dev/null 2>/dev/null || ( aReturn=$? && aPid= )
 echo -n ${aPid};
