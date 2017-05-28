@@ -1,5 +1,5 @@
 diff --git a/library/Icinga/Authentication/AdmissionLoader.php b/library/Icinga/Authentication/AdmissionLoader.php
-index 0a80be1..5fc3080 100644
+index 0a80be1..6839c94 100644
 --- a/library/Icinga/Authentication/AdmissionLoader.php
 +++ b/library/Icinga/Authentication/AdmissionLoader.php
 @@ -26,12 +26,14 @@ class AdmissionLoader
@@ -17,14 +17,16 @@ index 0a80be1..5fc3080 100644
          if (! empty($section->groups)) {
              $groups = array_map('strtolower', StringHelper::trimSplit($section->groups));
              foreach ($userGroups as $userGroup) {
-@@ -40,6 +42,12 @@ class AdmissionLoader
+@@ -40,6 +42,14 @@ class AdmissionLoader
                  }
              }
          }
 +
-+	if ($username != "remote_user"){
-+	   $username = 'remote_user';
-+	   return $this->match($username,$userGroups,$section);
++	if (Config::app('config')->get('icingaweb2','backend') === 'external' ){
++	   if ($username != "remote_user"){
++	      $username = 'remote_user';
++	      return $this->match($username,$userGroups,$section);
++	   }
 +	}
 +
          return false;
