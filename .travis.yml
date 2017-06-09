@@ -25,7 +25,8 @@ addons:
 env:
   global:
     - ICINGAWEB_CONFIGDIR=$(pwd)/build/icingaweb2
-    - PATH=$(pwd)/bin:$(pwd)/build/icingaweb2/bin
+    - PATH=$(pwd)/bin:$(pwd)/build/icingaweb2/bin:$(PATH)
+
 before_script:
     - mkdir build
     - git clone https://github.com/icinga2/icingaweb2 build/icingaweb2
