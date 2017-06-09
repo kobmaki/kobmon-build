@@ -41,5 +41,5 @@ script:
   - echo "{}"|./json2xml.$(uname -m).dynamic
   - echo "{}"|./json2xml.$(uname -m).static
   - popd
-  - build/icingaweb/bin/icingacli module list --installed
+  - build/icingaweb2/bin/icingacli module list --installed
 
