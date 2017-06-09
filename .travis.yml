@@ -16,6 +16,7 @@ addons:
     - libyajl-dev
 
 before_script:
+    - date
 
 script:
   - cd tools/json2xml
