@@ -2,7 +2,14 @@ dist: trusty
 
 sudo: false
 
-language: cpp
+language: cpp php
+
+php:
+  - '5.4'
+  - '5.5'
+  - '5.6'
+  - '7.0'
+  - '7.1'
 
 cache: ccache
 
@@ -14,13 +21,20 @@ addons:
     - libssl-dev
     - libedit-dev
     - libyajl-dev
-
+    - php5-cli
+env:
+  global:
+    - ICINGAWEB_CONFIGDIR=$(pwd)/build/icingaweb2
+    - PATH=$(pwd)/bin:$(pwd)/build/icingaweb2/bin
 before_script:
-    - date
+    - mkdir build
+    - git clone https://github.com/icinga2/icingaweb2 build/icingaweb2
+    - . $(ICINGAWEB_CONFIGDIR)/etc/bash_completion.d/icingacli 
 
 script:
   - cd tools/json2xml
   - make all
   - echo "{}"|./json2xml.$(uname -m).dynamic
   - echo "{}"|./json2xml.$(uname -m).static
+  - icingacli module list --installed
 
