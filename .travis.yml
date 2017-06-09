@@ -21,3 +21,5 @@ script:
   - cd tools/json2xml
   - make all
   - echo "{}"|./json2xml.(uname -m).dynamic
+  - echo "{}"|./json2xml.(uname -m).static
+
