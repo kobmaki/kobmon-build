@@ -9,6 +9,9 @@
 # Except those related to git and vagrant
 !.git*
 
+# include .travis.yml
+!.travis.yml
+
 # Exclude build directory
 build/*
 
@@ -17,4 +20,8 @@ sandbox/*
 
 # Exclude tmp for icingaweb2-module.template
 icingaweb2-module.template/tmp/*
+
+# Exclude json2xml compiled files
+tools/json2xml/json2xml.*.dynamic
+tools/json2xml/json2xml.*.static
 
