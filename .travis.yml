@@ -30,6 +30,7 @@ before_script:
     - export PATH=$(pwd)/bin:${ICINGAWEB_CONFIGDIR}/bin:${PATH}
     - mkdir build
     - git clone https://github.com/Icinga/icingaweb2.git build/icingaweb2
+    - ln -s build/icingaweb2/bin/icingacli bin/
 
 script:
   - export PATH=$(pwd)/bin:${ICINGAWEB_CONFIGDIR}/bin:${PATH}
@@ -39,5 +40,5 @@ script:
   - echo "{}"|./json2xml.$(uname -m).dynamic
   - echo "{}"|./json2xml.$(uname -m).static
   - cd ../..
-  - build/icingaweb/bin/icingacli module list --installed
+  - icingacli module list --installed
 
