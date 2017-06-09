@@ -2,7 +2,7 @@
 
 ## About
 
-kobmon-build contains some helper scripts to build/compile icinga/icinga2/nagios/nagvis/mediawiki/nagtrap/snmptt/... . All programs are installed as unprivileged user. Patches for some opensource projects are in the directory patches.
+[kobmon-build](https://gibhub.com/kobmaki/kobmon-build) contains some helper scripts to build/compile icinga/icinga2/nagios/nagvis/mediawiki/nagtrap/snmptt/... . All programs are installed as unprivileged user. Patches for some opensource projects are in the directory [patches](patches).
 
 This project is maintained by Uwe Ebel (kobmaki) on [https://github.com/kobmaki/kobmon-build/](github).
 
@@ -11,9 +11,12 @@ This project is maintained by Uwe Ebel (kobmaki) on [https://github.com/kobmaki/
 * kob-monbuild-install.sh - build/compile
 * kob-icingaweb2-module-create - creating a frame for icingaweb2 module 
 
+## Functions
+* [conf/icinga2](conf/icinga2) - icinga2 functions, helper
+* [conf/start-stop.d](conf/start-stop.d) - start-stop for system V helper
 ## Tools
 
-* json2xml - convert json to xml from stdin
+* [json2xml](tools/json2xml) - convert json to xml from stdin
 
 ## Documentation
 
