@@ -42,4 +42,7 @@ script:
   - echo "{}"|./json2xml.$(uname -m).static
   - popd
   - build/icingaweb2/bin/icingacli module list --installed
-
+  - bin/kob-icingaweb2-module-create create travis
+  - tar xf /tmp/travis.tgz -C build/icingaweb2/modules
+  - build/icingaweb2/bin/icingacli module enable travis
+  - build/icingaweb2/bin/icingacli travis info env
