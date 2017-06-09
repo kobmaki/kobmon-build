@@ -33,12 +33,13 @@ before_script:
     - ln -s build/icingaweb2/bin/icingacli bin/
 
 script:
+  - pushd .
   - export PATH=$(pwd)/bin:${ICINGAWEB_CONFIGDIR}/bin:${PATH}
   - echo ${PATH}
   - cd tools/json2xml
   - make all
   - echo "{}"|./json2xml.$(uname -m).dynamic
   - echo "{}"|./json2xml.$(uname -m).static
-  - cd ../..
-  - icingacli module list --installed
+  - popd
+  - build/icingaweb/bin/icingacli module list --installed
 
