@@ -1,4 +1,5 @@
 # Kobmon-build
+[![Build Status](https://travis-ci.org/kobmaki/kobmon-build.svg?branch=master)](https://travis-ci.org/kobmaki/kobmon-build)
 
 ## About
 
