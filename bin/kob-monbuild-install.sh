@@ -165,6 +165,7 @@ aNAGIOSSRCFILE=${aSRCDIR}/nagios-${aNAGIOSVERSION}.tar.gz
 
 aNRPEVERSION=${aNRPEVERSION-2.15}
 aNRPESRCFILE=${aSRCDIR}/nrpe-${aNRPEVERSION}.tar.gz
+aNRPEPORT=${aNRPEPORT-5666}
 
 aICINGAVERSION=${aICINGAVERSION-1.8.2}
 aICINGASRCFILE=${aSRCDIR}/icinga-${aICINGAVERSION}.tar.gz
@@ -343,7 +344,9 @@ function buildNrpe {
     tar xzf ${aNRPESRCFILE} || return 2
     aNRPEDIR=$(tar tf ${aNRPESRCFILE} |grep "/"|head -1 | sed s/"\/.*"//g)
     cd ${aNRPEDIR} || $(echo missing dir ${aNRPEDIR} && exit 2)
-    ./configure --prefix=${aPREFIX}/nrpe --with-nrpe-port=5666 --with-nrpe-user=${aUSER} --with-nrpe-group=${aGROUP} --with-nagios-user=${aUSER} --with-nagios-group=${aGROUP} --with-ssl-lib=$(pkg-config openssl --variable=libdir)
+    ./configure --prefix=${aPREFIX}/nrpe --with-nrpe-port=${aNRPEPORT} --with-nrpe-user=${aUSER} --with-nrpe-group=${aGROUP} --with-nagios-user=${aUSER} --with-nagios-group=${aGROUP} --with-ssl-lib=$(pkg-config openssl --variable=libdir)
+    make nrpe
+    make check_nrpe
     make install
     krc_status "### END BUILD "${aNRPESRCFILE} "### END BUILD WITH ERROR "${aNRPESRCFILE}
 }
@@ -391,14 +394,23 @@ function buildIcinga2 {
     cd build
     krc_status "... cmake start"
     cmake ../ -DCMAKE_INSTALL_PREFIX=${aPREFIX}/icinga2 -DCMAKE_INSTALL_SYSCONFDIR=${aPREFIX}/conf \
-	  -DICINGA2_RUNDIR=/dev/shm/$(id -nu)/run \
-	  -DICINGA2_USER=$(id -nu) -DICINGA2_GROUP=$(id -ng) \
+	  -DICINGA2_RUNDIR=${ICINGA2_RUNDIR-/dev/shm/$(id -nu)/run} \
+	  -DICINGA2_USER=${ICINGA2_USER-$(id -nu)} \
+	  -DICINGA2_GROUP=${ICINGA2_GROUP-$(id -ng)} \
 	  -DCMAKE_INSTALL_LOCALSTATEDIR=${aPREFIX}/var \
-	  -DICINGA2_COMMAND_GROUP=$(id -ng) \
+	  -DICINGA2_COMMAND_GROUP=${ICINGA2_COMMAND_GROUP-$(id -ng)} \
 	  -DICINGA2_SYSCONFIGFILE=${aPREFIX}/conf/icinga2/sysconfig/icinga2 \
 	  -DICINGA2_WITH_PGSQL=${ICINGA2_WITH_PGSQL-OFF} \
 	  -DICINGA2_WITH_MYSQL=${ICINGA2_WITH_MYSQL-ON} \
-	  -DBUILDTESTING=FALSE \
+	  -DICINGA2_WITH_CHECKER=${ICINGA2_WITH_CHECKER-ON} \
+	  -DICINGA2_WITH_LIVESTATUS=${ICINGA2_WITH_LIVESTATUS-ON} \
+	  -DICINGA2_WITH_NOTIFICATION=${ICINGA2_WITH_NOTIFICATION-ON} \
+	  -DICINGA2_WITH_PERFDATA={ICINGA2_WITH_PERFDATA-ON} \
+	  -DICINGA2_WITH_COMPAT=${ICINGA2_WITH_COMPAT-ON} \
+	  -DICINGA2_WITH_DEMO=${ICINGA2_WITH_DEMO-OFF} \
+	  -DICINGA2_UNITY_BUILD=${ICINGA2_UNITY_BUILD-ON} \
+	  -DICINGA2_PLUGINDIR=${ICINGA2_PLUGINDIR-${aPREFIX}/icinga2/plugins} \
+	  -DBUILDTESTING=${ICINGA2_BUILDTESTING-FALSE} \
 	  -DICINGA2_WITH_HELLO=${ICINGA2_WITH_HELLO-FALSE} \
 	  -DICINGA2_WITH_REDIS=${ICINGA2_WITH_REDIS-ON} \
 	  -DBoost_NO_BOOST_CMAKE=TRUE \
