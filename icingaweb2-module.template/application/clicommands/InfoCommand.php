@@ -9,8 +9,8 @@ use Icinga\Cli\Command;
 use Icinga\Application\Benchmark;
 
 /**
-* Class InfoCommand with default env command.
-**/
+* Class InfoCommand with date and env command.
+*/
 class InfoCommand extends Command
 {
 
@@ -19,8 +19,8 @@ class InfoCommand extends Command
 *
 * Usage
 *
-*   icingacli @@TEMPLATE@@ env [--benchmark]
-**/
+*   icingacli @@TEMPLATE@@ info env [--benchmark]
+*/
     public function envAction()
     {
         Benchmark::measure('Start env');
@@ -29,6 +29,20 @@ class InfoCommand extends Command
         print 'ICINGAWEB_CONFIGDIR='.$aValue."\n";
         print 'Modulepath for '.$this->moduleName;
         print ':'.realpath(__DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..')."\n";
-        Benchmark::measure('Start env');
+        Benchmark::measure('End env');
+    }
+
+/**
+* Show only the date
+*
+* Usage
+*
+*   icingacli @@TEMPLATE@@ info date [--benchmark]
+*/
+    public function dateAction()
+    {
+        Benchmark::measure('Start date');
+        print date(DATE_RFC822)."\n";
+        Benchmark::measure('End date');
     }
 }
