@@ -1,0 +1,109 @@
+diff --git a/application/forms/Config/Resource/DbResourceForm.php b/application/forms/Config/Resource/DbResourceForm.php
+index 0bd0c65..b2c3106 100644
+--- a/application/forms/Config/Resource/DbResourceForm.php
++++ b/application/forms/Config/Resource/DbResourceForm.php
+@@ -42,10 +42,15 @@ class DbResourceForm extends Form
+         if (Platform::hasOciSupport()) {
+             $dbChoices['oci'] = 'Oracle (OCI8)';
+         }
++        if (Platform::hasSqliteSupport()) {
++            $dbChoices['sqlite'] = 'Sqlite';
++        }
++
+ 
+         $offerSsl = false;
+         $offerPostgres = false;
+         $offerMysql = false;
++	$offerSqlite = false;
+         $dbChoice = isset($formData['db']) ? $formData['db'] : key($dbChoices);
+         if ($dbChoice === 'pgsql') {
+             $offerPostgres = true;
+@@ -54,7 +59,9 @@ class DbResourceForm extends Form
+             if (version_compare(Platform::getPhpVersion(), '5.4.0', '>=')) {
+                 $offerSsl = true;
+             }
+-        }
++        } elseif ($dbChoice === 'sqlite') {
++	    $offerSqlite = true;
++	}
+ 
+         $socketInfo = '';
+         if ($offerPostgres) {
+@@ -87,11 +94,13 @@ class DbResourceForm extends Form
+                 'multiOptions'  => $dbChoices
+             )
+         );
++
++	if ( $dbChoice != 'sqlite' ) {
+         $this->addElement(
+             'text',
+             'host',
+             array (
+-                'required'      => true,
++                'required'      => ( $dbChoice != 'sqlite' ),
+                 'label'         => $this->translate('Host'),
+                 'description'   => $this->translate('The hostname of the database')
+                     . ($socketInfo ? '. ' . $socketInfo : ''),
+@@ -109,6 +118,7 @@ class DbResourceForm extends Form
+                 'value'             => $offerPostgres ? 5432 : null
+             )
+         );
++	}
+         $this->addElement(
+             'text',
+             'dbname',
+@@ -118,6 +128,8 @@ class DbResourceForm extends Form
+                 'description'   => $this->translate('The name of the database to use')
+             )
+         );
++
++	if ( $dbChoice != 'sqlite' ) {
+         $this->addElement(
+             'text',
+             'username',
+@@ -136,6 +148,7 @@ class DbResourceForm extends Form
+                 'description'       => $this->translate('The password to use for authentication')
+             )
+         );
++        };
+         $this->addElement(
+             'text',
+             'charset',
+diff --git a/library/Icinga/Application/Platform.php b/library/Icinga/Application/Platform.php
+index 127e655..bc80dc1 100644
+--- a/library/Icinga/Application/Platform.php
++++ b/library/Icinga/Application/Platform.php
+@@ -401,4 +401,18 @@ class Platform
+     {
+         return static::extensionLoaded('pdo_pgsql') && static::classExists('Zend_Db_Adapter_Pdo_Pgsql');
+     }
++
++    /**
++     * Return whether it's possible to connect to a Sqlite database
++     *
++     * Checks whether the sqlite pdo extension has been loaded and the Zend framework adapter for PostgreSQL is available
++     *
++     * @return  bool
++     */
++
++    public static function hasSqliteSupport()
++    {
++        return static::extensionLoaded('pdo_sqlite') && static::classExists('Zend_Db_Adapter_Pdo_Sqlite');
++    }
++
+ }
+diff --git a/library/Icinga/Data/Db/DbConnection.php b/library/Icinga/Data/Db/DbConnection.php
+index 0c5b445..23fa65d 100644
+--- a/library/Icinga/Data/Db/DbConnection.php
++++ b/library/Icinga/Data/Db/DbConnection.php
+@@ -203,6 +203,10 @@ class DbConnection implements Selectable, Extensible, Updatable, Reducible, Insp
+                 $adapter = 'Pdo_Pgsql';
+                 $defaultPort = 5432;
+                 break;
++	    case 'sqlite':
++                $adapter = 'Pdo_Sqlite';
++                $defaultPort = 7; // dummy echo port , as value is required
++		break;
+             default:
+                 throw new ConfigurationError(
+                     'Backend "%s" is not supported',
