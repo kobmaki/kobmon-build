@@ -48,7 +48,7 @@ function kob_show (){
 # test if an agent is still running
 function is_running()
 {
-    pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG} 2>/dev/null >/dev/null
+    pgrep -o -u ${ICINGA2_USER} -x ${ICINGA2_PROG} -a | grep daemon | sed s/" .*"//g 2>/dev/null >/dev/null
     return $?
 }
 
