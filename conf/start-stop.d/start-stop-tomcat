@@ -1,0 +1,240 @@
+#!/bin/bash
+# Autor: Uwe Ebel  ( kobmaki @ aol com )
+# Licence: GPLv2
+# Project: kobmon-build
+# Version: 1.0
+# URL: https://gibhub.com/kobmaki/kobmon-build
+
+
+if [[ $(basename $0) == "start-stop-tomcat" && "${1}" -ne "wrapper" ]]; then
+    echo "ERROR DO NOT $0 RUN DIRECT"
+    exit 2
+fi
+
+# try reading lsb functions
+test -r /lib/lsb/init-functions && . /lib/lsb/init-functions
+if [ ! $PROFILEREAD ]; then
+    . /etc/profile 1>/dev/null 2>/dev/null
+fi
+
+function krc_status ()
+{
+    _krc_status_ret=$?
+    case ${_krc_status_ret} in
+    0) echo -n  "$(tput setaf 2 2>/dev/null)$1$(tput sgr0 2>/dev/null)"
+            [[ -z $1 ]] ||  echo
+    ;;
+    1) echo -n  "$(tput setaf 1 2>/dev/null)$2$(tput sgr0 2>/dev/null)"
+            [[  -z $2 ]] || echo
+       ;;
+    *)
+            echo "UNKNOWN $_krc_status_ret "$3
+      ;;
+   esac
+    return $_krc_status_ret
+}
+
+# some helper functions
+function krc_show (){
+    echo -ne ${1}": "
+    krc_status "${!1}"
+    test -z "${!1}" && echo
+}
+
+PROVIDES=${PROVIDES-${0}}
+# Test if we could read the environment
+
+export TOMCAT_HOME=${TOMCAT_HOME-${HOME}/tomcat} # path for the tomcat
+export TOMCAT_CATALINA=${TOMCAT_HOME}/bin/catalina.sh # cataline start
+export TOMCAT_PORT=${TOMCAT_PORT-8080} # default port 5685
+export TOMCAT_USR=${TOMCAT_USR-tomcat} # which user
+export TOMCAT_GRP=${TOMCAT_GRP-tomcat} # in which group
+export CHECK_TCP=${CHECK_TCP-/usr/local/nagios/libexec/check_tcp}
+# catalina options for identify the service/process
+export CATALINA_OPTS=${CATALINA_OPTS-"-D${TOMCAT_USR}-service=tomcat"} # options for the tomcat
+
+case "$1" in
+
+start|stop|help|info|stop-force|status|check)
+        if [ "`whoami`" != "${TOMCAT_USR}" ]; then
+            /bin/su - ${TOMCAT_USR} -c "$0 $@" 2>&1
+            exit $?
+        fi
+
+        ;;
+*)
+        ;;
+esac
+
+case "$1" in
+
+start)
+	echo -n "Starting "${PROVIDES}"... "
+
+	aPID=$(pgrep -u ${TOMCAT_USR} -f service=tomcat -o)
+
+	if [ "${aPID}" != "" ]; then
+	    krc_status "already running with pid "${aPID}" -  nothing to do "
+	    exit
+	fi
+
+	${TOMCAT_CATALINA} start 2>/dev/null >/dev/null
+	sleep 1
+	aPID=`pgrep -u \`whoami\` -f service=tomcat -o`
+
+	if [ "${aPID}" == "" ]; then
+	    false
+	    krc_status "N.N." "not started as user "${TOMCAT_USR}
+	    exit
+	    fi
+
+        krc_status "started with PID "${aPID}" as user "${TOMCAT_USR}
+	;;
+
+stop)
+	echo -n "Stopping "${PROVIDES}"... "
+
+	aPID=$(pgrep -u ${TOMCAT_USR} -f D${TOMCAT_USR}-service=tomcat -o)
+	
+	while [ "${aPID}" != ""  ]; do
+
+	 ${TOMCAT_CATALINA} stop 2>/dev/null >/dev/null
+
+	 echo -n "."
+	 aROUND="${aROUND}."
+	 sleep 1
+	aPID=$(pgrep -u ${TOMCAT_USR} -f D${TOMCAT_USR}-service=tomcat -o)
+
+	if [ ${aROUND} == "......" ]; then
+	    break
+	    fi
+	done
+	
+	if [ "$aPID" == "" ]; then
+	    krc_status "stopped"
+
+	else
+	    false
+	    krc_status "N.N" ".. not stopped, still running with PID "${aPID}
+	    $0 stop-force
+	fi
+	;;
+
+stop-force)
+	echo -n "Stopping force "${PROVIDES}"... "
+	kill -9 `pgrep -u \`whoami\` -f service=tomcat ` >/dev/null
+	aPID=$(pgrep -u ${TOMCAT_USR} -f D${TOMCAT_USR}-service=tomcat -o)
+
+        if [ "$aPID" == "" ]; then
+            krc_status " stopped"
+        else
+	    false
+            krc_status "N.N." ".. not stopped, stillrunning with PID "${aPID}
+        fi
+        ;;
+
+restart)
+	echo "Restart "${PROVIDES}" via stop start status"
+	$0 stop
+	sleep 2
+	$0 start
+	sleep 2
+	$0 status
+	;;
+
+status)
+	echo -n "Status "${PROVIDES}" "
+	${CHECK_TCP} -H localhost -p ${TOMCAT_PORT} >/dev/null
+	if [ $? -eq 0 ]; then
+	    krc_status "running and listen on port ${TOMCAT_PORT} with PID "$(pgrep -u ${TOMCAT_USR} -f D${TOMCAT_USR}-service=tomcat )" as user "${TOMCAT_USR}
+	    exit
+	fi
+
+	aPID="$(pgrep -u ${TOMCAT_USR}  -f service=tomcat -o)"
+	if [ "$aPID" == "" ]; then
+	     false
+	     krc_status "N.N."  " not running"
+	else
+	     krc_status "running with PID "${aPID}" as user/group "${TOMCAT_USR}"/"${TOMCAT_GRP}
+	fi
+
+	;;
+
+info)
+        echo "Info for "${PROVIDES}
+
+     	for par in PROVIDES TOMCAT_USR TOMCAT_GRP TOMCAT_HOME TOMCAT_CATALINA TOMCAT_PORT CATALINA_OPTS START_STOP_TOMCAT; do
+	    krc_show ${par}
+	    done
+	;;
+
+check)
+	echo "Check start for "${PROVIDES}
+	
+        echo -ne "tomcat(catalina): "
+        test -x ${TOMCAT_CATALINA}
+        krc_status ""${TOMCAT_CATALINA} "MISSING: "${TOMCAT_CATALINA}
+	echo "Check end for "${PROVIDES}
+	;;
+
+tomcat)
+        shift
+        ${TOMCAT_CATALINA} $@
+        ;;
+
+configtest)
+	# configtest with tomcat installation
+        $0 tomcat configtest
+        ;;
+
+help)
+	cat <<EOF
+help for $(basename $0)
+usage: $(basename $0) [start|stop|restart|status|info|help|configtest|wrapper]
+
+help - show this help
+start - start the tomcat
+stop - stop the tomcat
+restart - restart the tomcat via stop and start
+info - show some configuration infos
+configtest - test the configuration with the tomcat catalina script
+tomcat - direct call of catalalia.sh (TOMCAT_CATALINA)
+wrapper - gives a wrapper for the start-stop-tomcat
+EOF
+;;
+
+wrapper)
+TOMCAT_USR=${TOMCAT_USR-${id -un}}
+TOMCAT_GRP=${TOMCAT_GRP-${id -gn}}
+cat <<EOF
+#!$(which bash)
+# Provides: ${PROVIDES}
+# Required-Start: \$remote_fs \$syslog \$network
+# Required-Stop:  \$remote_fs \$syslog
+# Default-Start:  2 3 4 5
+# Default-Stop:   1 6
+# Description:    Tomcat system
+### END INIT INFO     
+
+# this is the full path to the start-stop-tomcat
+START_STOP_TOMCAT=$(echo ${START_STOP-SET_PATH_TO_START_STOP})
+
+TOMCAT_USR=${TOMCAT_USR-$(id -un)}
+TOMCAT_GRP=${TOMCAT_GRP-$(id -gn)}
+TOMCAT_HOME=${TOMCAT_HOME-PATH_TO_TOMCAT_HOME}
+TOMCAT_PORT=${TOMCAT_PORT-8080}
+
+# set the monitoring-plugin check check_tcp
+CHECK_TCP=${CHECK_TCP}
+
+# run/use the base start-stop skript for tomcat
+
+. \${START_STOP_TOMCAT}
+EOF
+;;
+
+*)
+	echo 'Usage: '$0' {start|stop|restart|status|info|check|configtest}'
+	;;
+
+esac
