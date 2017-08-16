@@ -1,3 +1,31 @@
+diff --git a/doc/18-library-reference.md b/doc/18-library-reference.md
+index a819bbc..01c74e2 100644
+--- a/doc/18-library-reference.md
++++ b/doc/18-library-reference.md
+@@ -459,6 +459,23 @@ Example:
+     <2> => basename(path)
+     "xmpp-notification.pl"
+ 
++### pathexist <a id="global-functions-pathexist"></a>
++
++Signature:
++
++    function pathexist(path)
++
++Returns true if the path exist otherwise false.
++
++Example:
++
++    $ icinga2 console
++    Icinga 2 (version: v2.7.0)
++    <1> => pathexist("/")
++    true
++    <2> => pathexist("/a/non/exist/path")
++    false
++
+ ### escape_shell_arg <a id="global-functions-escape_shell_arg"></a>
+ 
+ Signature:
 diff --git a/lib/base/scriptutils.cpp b/lib/base/scriptutils.cpp
 index ef70ecc..3195c52 100644
 --- a/lib/base/scriptutils.cpp
