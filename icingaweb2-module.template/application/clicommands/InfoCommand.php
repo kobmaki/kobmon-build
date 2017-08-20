@@ -1,21 +1,31 @@
 <?php
 /**
-* Contains info command for module @@TEMPLATE@@
+* Contains info commands for module @@TEMPLATE@@
 **/
 
 namespace Icinga\Module\@@TEMPLATE@@\Clicommands;
 
 use Icinga\Cli\Command;
+use Icinga\Cli\AnsiScreen;
 use Icinga\Application\Benchmark;
+use PDO;
 
 /**
-* Class InfoCommand with date and env command.
+* Info command with date, env and driver actions.
 */
 class InfoCommand extends Command
 {
 
-/**
-* Shows environment info.
+    protected $screen;
+
+    public function init()
+    {
+        $this->app->setupZendAutoloader();
+        $this->screen=new AnsiScreen();
+
+    }
+    /**
+* Show environment information
 *
 * Usage
 *
@@ -24,15 +34,15 @@ class InfoCommand extends Command
     public function envAction()
     {
         Benchmark::measure('Start env');
-        print 'Environment for module '.$this->moduleName."\n";
+        print $this->screen->underline('Environment for module '.$this->moduleName."\n");
         $aValue= getenv('ICINGAWEB_CONFIGDIR');
-        print 'ICINGAWEB_CONFIGDIR='.$aValue."\n";
+        print 'ICINGAWEB_CONFIGDIR: '.$aValue."\n";
         print 'Modulepath for '.$this->moduleName;
         print ':'.realpath(__DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..')."\n";
         Benchmark::measure('End env');
     }
 
-/**
+    /**
 * Show only the date
 *
 * Usage
@@ -44,5 +54,26 @@ class InfoCommand extends Command
         Benchmark::measure('Start date');
         print date(DATE_RFC822)."\n";
         Benchmark::measure('End date');
+    }
+
+    /**
+* Show the available pdo database driver
+*
+* Usage
+*
+*   icingacli @@TEMPLATE@@ info driver [--benchmark]
+*/
+    public function driverAction()
+    {
+        Benchmark::measure('Start driver');
+        print $this->screen->underline("driver for database \n");
+        $countDriver=0;
+        foreach (PDO::getAvailableDrivers() as $aDriver) {
+            print "* ".$aDriver."\n";
+            $countDriver+=1;
+        };
+        print $this->screen->underline('Total driver:'.$countDriver);
+        print $this->screen->newlines();
+        Benchmark::measure('End driver');
     }
 }
