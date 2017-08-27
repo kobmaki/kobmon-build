@@ -44,4 +44,23 @@ When nagvis is installed, you should copy the predefined maps DEMOMOD to /etc/na
   cp demos/nagvis-demomod/maps/DEMOMAP*.cfg /etc/nagvis/maps/
 ```
 
+## Add the DEMOMOD.cfg for icinga2
+Test if your icinga2 is working:
+``` 
+  icinga2 daemon -C
+```
+If it is find you can add the kobmon-build/conf/icinga2/demo.d/DEMOMOD.conf to your /etc/icinga2/icinga2.conf
+```
+ include "/HERE/THE/PATH/TO/kobmon-build/conf/icinga2/demo.d/DEMOMOD.conf"
+```
+
+Using a softlink into your icinga2/conf.d/ doesn't work, sorry.
+
+And test again
+```
+  icinga2 daemon -C
+```
+
+Now restart/reload your icinga2.
+
 
