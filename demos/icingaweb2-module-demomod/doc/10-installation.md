@@ -1,6 +1,6 @@
 # Installation of demomod
 
-The following installtion try to use the default installation paths.
+The following installation description use the default installation paths.
 
 ##  Clone the kobmon-build repo
 
@@ -49,7 +49,7 @@ Test if your icinga2 is working:
 ``` 
   icinga2 daemon -C
 ```
-If it is find you can add the kobmon-build/conf/icinga2/demo.d/DEMOMOD.conf to your /etc/icinga2/icinga2.conf
+If it is fine you can add the kobmon-build/conf/icinga2/demo.d/DEMOMOD.conf to your /etc/icinga2/icinga2.conf
 ```
  include "/HERE/THE/PATH/TO/kobmon-build/conf/icinga2/demo.d/DEMOMOD.conf"
 ```
