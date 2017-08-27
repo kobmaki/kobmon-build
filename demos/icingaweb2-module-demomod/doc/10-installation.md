@@ -37,4 +37,11 @@ Use eighter the webfrontend to enable the modules or run on commandline the foll
  icingacli module enable nagvis
 ```
 
+## Use the nagvis maps
+When nagvis is installed, you should copy the predefined maps DEMOMOD to /etc/nagvis/maps/
+
+```
+  cp demos/nagvis-demomod/maps/DEMOMAP*.cfg /etc/nagvis/maps/
+```
+
 
