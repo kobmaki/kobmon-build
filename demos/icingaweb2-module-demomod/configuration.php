@@ -74,7 +74,7 @@ $section->add('Cube - Source - Types', array (
    ));
 
 $section->add('Host map (OSM)', array (
-    'url' => 'map?default_zoom=2&default_lat=52.520645&default_long=13.409779',
+    'url' => 'map?default_zoom=2&default_lat=22.7559&default_long=42.0117',
     'icon'=> 'cubes',
     'title' => 'Map from OpenstreetMap',
     'priority' => 30
