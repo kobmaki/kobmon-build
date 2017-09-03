@@ -3,7 +3,7 @@
 * Contains info commands for module demomod
 **/
 
-namespace Icinga\Module\demomod\Clicommands;
+namespace Icinga\Module\Demomod\Clicommands;
 
 use Icinga\Cli\Command;
 use Icinga\Cli\AnsiScreen;
