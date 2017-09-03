@@ -12,7 +12,7 @@ $this->provideConfigTab('config', array(
 
 $section = $this->menuSection('DemoMod',
     array(
-    'title' => 'DemoMod',
+    'title' => 'Demo Module',
     'icon' => 'menu',
     'priority' => 200
            )
@@ -25,7 +25,7 @@ $section->add('Help', array(
 ));
 
 $section->add('Hostgroup', array (
-    'url' => 'monitoring/list/hostgroups?hostgroup_name=DEMOMOD*&sort=hosts_total&dir=desc',
+    'url' => 'monitoring/list/hostgroups?hostgroup_name=DEMOMOD*&sort=hosts_total&dir=desc&limit=500',
     'icon'=> 'menu',
     'title' => 'Hostgroups starting with DemoMod',
     'label' => 'Hostgroups',
@@ -34,16 +34,25 @@ $section->add('Hostgroup', array (
 
 
 $section->add('Hosts', array (
-    'url' => 'monitoring/list/hosts?_host_demomod=DEMOMOD',
+    'url' => 'monitoring/list/hosts?_host_demomod=DEMOMOD&limit=500',
     'icon'=> 'menu',
     'title' => 'Hosts created by DemoMod',
     'label' => 'Hosts',
-    'priority' => 20
+    'priority' => 10
    ));
+
+$section->add('Services', array (
+    'url' => 'monitoring/list/services?_host_demomod=DEMOMOD&limit=100&dir=desc',
+    'icon'=> 'menu',
+    'title' => 'Services created by DemoMod',
+    'label' => 'Services',
+    'priority' => 10
+   ));
+
 
 #
 $section->add('Servicegroups', array (
-    'url' => 'monitoring/list/servicegroups?servicegroup_name=DEMOMOD-%2A&sort=services_total&dir=desc',
+    'url' => 'monitoring/list/servicegroups?servicegroup_name=DEMOMOD-%2A&sort=services_total&dir=desc&limit=500',
     'icon'=> 'menu',
     'title' => 'Servicegroups created by DemoMod',
     'label' => 'Servicegroups',

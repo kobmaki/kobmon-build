@@ -1,10 +1,10 @@
 <?php
 /**
 * File contains class ConfigController for
-* Icinga\Module\@@TEMPLATE@@\Controllers.
+* Icinga\Module\@@Template@@\Controllers.
 */
 
-namespace Icinga\Module\@@TEMPLATE@@\Controllers;
+namespace Icinga\Module\@@Template@@\Controllers;
 
 use Icinga\Module\Web\Controller;
 

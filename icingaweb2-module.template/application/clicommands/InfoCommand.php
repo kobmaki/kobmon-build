@@ -3,7 +3,7 @@
 * Contains info commands for module @@TEMPLATE@@
 **/
 
-namespace Icinga\Module\@@TEMPLATE@@\Clicommands;
+namespace Icinga\Module\@@Template@@\Clicommands;
 
 use Icinga\Cli\Command;
 use Icinga\Cli\AnsiScreen;

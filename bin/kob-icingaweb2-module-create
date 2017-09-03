@@ -6,9 +6,12 @@
 
 aACTION=$1
 aTEMPLATE=${2-demo}
+aTemplate=${aTEMPLATE^}
+
 aTEMPLATEDIR=$(cd  $(pwd)/$(dirname $0)/../icingaweb2-module.template; pwd) || echo "ERROR no templatedir" && $(exit 2)
 aTEMPLATEFILE=${aTEMPLATEDIR}/template-files.txt
-aTMP=/tmp
+aTMP=${3-"/tmp"}
+
 case $1 in
 
 
@@ -22,7 +25,7 @@ create)
     pwd
     tar xf ../${aTEMPLATE}.tgz
     
-    for i in $(fgrep -l "@@TEMPLATE@@" -r *); do sed -i s/"@@TEMPLATE@@"/${aTEMPLATE}/g $i;done;
+    for i in $(fgrep -l "@@TEMPLATE@@" -r *); do sed -i -e s/"@@TEMPLATE@@"/${aTEMPLATE}/g -e s/"@@Template@@"/${aTemplate}/g $i;done;
     
     cd ${aTMP}
     tar czf ${aTEMPLATE}.tgz ${aTEMPLATE}
