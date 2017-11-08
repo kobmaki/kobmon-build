@@ -1,6 +1,7 @@
 application/views/scripts/config/index.phtml
 application/clicommands/InfoCommand.php
 application/controllers/ConfigController.php
+application/controllers/IndexController.php
 application/locale/
 application/views/
 configuration.php
@@ -11,3 +12,4 @@ module.info
 run.php
 public/css/modules.less
 public/js/modules.js
+test/
