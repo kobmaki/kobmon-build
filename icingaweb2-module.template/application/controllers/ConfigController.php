@@ -6,7 +6,7 @@
 
 namespace Icinga\Module\@@Template@@\Controllers;
 
-use Icinga\Module\Web\Controller;
+use Icinga\Web\Controller;
 
 /**
 * Defines the ConfigController for modul '@@TEMPLATE@@'
