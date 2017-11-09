@@ -1,79 +1,145 @@
 diff --git a/application/forms/Config/Resource/DbResourceForm.php b/application/forms/Config/Resource/DbResourceForm.php
-index 0bd0c65..b2c3106 100644
+index 89fe75f15..127125580 100644
 --- a/application/forms/Config/Resource/DbResourceForm.php
 +++ b/application/forms/Config/Resource/DbResourceForm.php
-@@ -42,10 +42,15 @@ class DbResourceForm extends Form
+@@ -45,11 +45,15 @@ class DbResourceForm extends Form
          if (Platform::hasOciSupport()) {
              $dbChoices['oci'] = 'Oracle (OCI8)';
          }
 +        if (Platform::hasSqliteSupport()) {
 +            $dbChoices['sqlite'] = 'Sqlite';
 +        }
-+
  
          $offerSsl = false;
          $offerPostgres = false;
+         $offerIbm = false;
          $offerMysql = false;
-+	$offerSqlite = false;
++        $offerSqlite = false;
          $dbChoice = isset($formData['db']) ? $formData['db'] : key($dbChoices);
          if ($dbChoice === 'pgsql') {
              $offerPostgres = true;
-@@ -54,7 +59,9 @@ class DbResourceForm extends Form
-             if (version_compare(Platform::getPhpVersion(), '5.4.0', '>=')) {
-                 $offerSsl = true;
+@@ -60,6 +64,8 @@ class DbResourceForm extends Form
              }
--        }
+         } elseif ($dbChoice === 'ibm') {
+             $offerIbm = true;
 +        } elseif ($dbChoice === 'sqlite') {
-+	    $offerSqlite = true;
-+	}
++            $offerSqlite = true;
+         }
  
          $socketInfo = '';
-         if ($offerPostgres) {
-@@ -87,11 +94,13 @@ class DbResourceForm extends Form
+@@ -93,28 +99,30 @@ class DbResourceForm extends Form
                  'multiOptions'  => $dbChoices
              )
          );
-+
-+	if ( $dbChoice != 'sqlite' ) {
-         $this->addElement(
-             'text',
-             'host',
-             array (
+-        $this->addElement(
+-            'text',
+-            'host',
+-            array (
 -                'required'      => true,
-+                'required'      => ( $dbChoice != 'sqlite' ),
-                 'label'         => $this->translate('Host'),
-                 'description'   => $this->translate('The hostname of the database')
-                     . ($socketInfo ? '. ' . $socketInfo : ''),
-@@ -109,6 +118,7 @@ class DbResourceForm extends Form
-                 'value'             => $offerPostgres ? 5432 : null
-             )
-         );
-+	}
+-                'label'         => $this->translate('Host'),
+-                'description'   => $this->translate('The hostname of the database')
+-                    . ($socketInfo ? '. ' . $socketInfo : ''),
+-                'value'         => 'localhost'
+-            )
+-        );
+-        $this->addElement(
+-            'number',
+-            'port',
+-            array(
+-                'description'       => $this->translate('The port to use'),
+-                'label'             => $this->translate('Port'),
+-                'preserveDefault'   => true,
+-                'required'          => $offerPostgres,
+-                'value'             => $offerPostgres ? 5432 : null
+-            )
+-        );
++        if ($dbChoice != 'sqlite') {
++             $this->addElement(
++                'text',
++                'host',
++                array (
++                    'required'      => true,
++                    'label'         => $this->translate('Host'),
++                    'description'   => $this->translate('The hostname of the database')
++                        . ($socketInfo ? '. ' . $socketInfo : ''),
++                    'value'         => 'localhost'
++                )
++            );
++            $this->addElement(
++                'number',
++                'port',
++                array(
++                    'description'       => $this->translate('The port to use'),
++                    'label'             => $this->translate('Port'),
++                    'preserveDefault'   => true,
++                    'required'          => $offerPostgres,
++                    'value'             => $offerPostgres ? 5432 : null
++                )
++            );
++        };
          $this->addElement(
              'text',
              'dbname',
-@@ -118,6 +128,8 @@ class DbResourceForm extends Form
+@@ -124,24 +132,27 @@ class DbResourceForm extends Form
                  'description'   => $this->translate('The name of the database to use')
              )
          );
-+
-+	if ( $dbChoice != 'sqlite' ) {
-         $this->addElement(
-             'text',
-             'username',
-@@ -136,6 +148,7 @@ class DbResourceForm extends Form
-                 'description'       => $this->translate('The password to use for authentication')
-             )
-         );
+-        $this->addElement(
+-            'text',
+-            'username',
+-            array (
+-                'required'      => true,
+-                'label'         => $this->translate('Username'),
+-                'description'   => $this->translate('The user name to use for authentication')
+-            )
+-        );
+-        $this->addElement(
+-            'password',
+-            'password',
+-            array(
+-                'renderPassword'    => true,
+-                'label'             => $this->translate('Password'),
+-                'description'       => $this->translate('The password to use for authentication')
+-            )
+-        );
++        if ($dbChoice != 'sqlite') {
++            $this->addElement(
++                'text',
++                'username',
++                array (
++                    'required'      => true,
++                    'label'         => $this->translate('Username'),
++                    'description'   => $this->translate('The user name to use for authentication')
++                )
++            );
++            $this->addElement(
++                'password',
++                'password',
++                array(
++                    'required'          => true,
++                    'renderPassword'    => true,
++                    'label'             => $this->translate('Password'),
++                    'description'       => $this->translate('The password to use for authentication')
++                )
++            );
 +        };
          $this->addElement(
              'text',
              'charset',
+@@ -217,6 +228,8 @@ class DbResourceForm extends Form
+                     )
+                 );
+             }
++        } elseif ($dbChoice === 'sqlite') {
++            $offerSqlite = true;
+         }
+ 
+         return $this;
 diff --git a/library/Icinga/Application/Platform.php b/library/Icinga/Application/Platform.php
-index 127e655..bc80dc1 100644
+index 21ef47d52..af68829a8 100644
 --- a/library/Icinga/Application/Platform.php
 +++ b/library/Icinga/Application/Platform.php
-@@ -401,4 +401,18 @@ class Platform
+@@ -413,4 +413,17 @@ class Platform
      {
          return static::extensionLoaded('pdo_pgsql') && static::classExists('Zend_Db_Adapter_Pdo_Pgsql');
      }
@@ -81,7 +147,7 @@ index 127e655..bc80dc1 100644
 +    /**
 +     * Return whether it's possible to connect to a Sqlite database
 +     *
-+     * Checks whether the sqlite pdo extension has been loaded and the Zend framework adapter for PostgreSQL is available
++     * Checks whether the sqlite pdo extension has been loaded and the Zend framework adapter for SQLITE is available
 +     *
 +     * @return  bool
 +     */
@@ -90,20 +156,19 @@ index 127e655..bc80dc1 100644
 +    {
 +        return static::extensionLoaded('pdo_sqlite') && static::classExists('Zend_Db_Adapter_Pdo_Sqlite');
 +    }
-+
  }
 diff --git a/library/Icinga/Data/Db/DbConnection.php b/library/Icinga/Data/Db/DbConnection.php
-index 0c5b445..23fa65d 100644
+index a52ffc388..7a58da213 100644
 --- a/library/Icinga/Data/Db/DbConnection.php
 +++ b/library/Icinga/Data/Db/DbConnection.php
-@@ -203,6 +203,10 @@ class DbConnection implements Selectable, Extensible, Updatable, Reducible, Insp
-                 $adapter = 'Pdo_Pgsql';
-                 $defaultPort = 5432;
+@@ -207,6 +207,10 @@ class DbConnection implements Selectable, Extensible, Updatable, Reducible, Insp
+                 $adapter = 'Pdo_Ibm';
+                 $defaultPort = 50000;
                  break;
-+	    case 'sqlite':
++            case 'sqlite':
 +                $adapter = 'Pdo_Sqlite';
-+                $defaultPort = 7; // dummy echo port , as value is required
-+		break;
++                $defaultPort = 0; // dummy port, as a value is required
++                break;
              default:
                  throw new ConfigurationError(
                      'Backend "%s" is not supported',
