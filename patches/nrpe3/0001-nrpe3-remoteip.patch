@@ -1,5 +1,5 @@
 diff --git a/include/nrpe.h b/include/nrpe.h
-index a31d6da..d0a4fe8 100644
+index dc00c64..059bfb5 100644
 --- a/include/nrpe.h
 +++ b/include/nrpe.h
 @@ -54,7 +54,7 @@ void init_handle_conn(void);
@@ -12,10 +12,10 @@ index a31d6da..d0a4fe8 100644
  void my_connection_sighandler(int);			/* handles timeouts of connection */
  int drop_privileges(char *,char *, int);
 diff --git a/src/nrpe.c b/src/nrpe.c
-index 3c25f68..03ffac4 100644
+index 8e92764..196bbb9 100644
 --- a/src/nrpe.c
 +++ b/src/nrpe.c
-@@ -1714,7 +1714,7 @@ void handle_connection(int sock)
+@@ -1772,7 +1772,7 @@ void handle_connection(int sock)
  
  			/* run the command */
  			strcpy(buffer, "");
@@ -24,7 +24,7 @@ index 3c25f68..03ffac4 100644
  
  			if (debug == TRUE)	/* log debug info */
  				logit(LOG_DEBUG, "Command completed with return code %d and output: %s",
-@@ -2091,7 +2091,7 @@ void free_memory(void)
+@@ -2157,7 +2157,7 @@ void free_memory(void)
  }
  
  /* executes a system command via popen(), but protects against timeouts */
@@ -33,7 +33,7 @@ index 3c25f68..03ffac4 100644
  {
  	FILE     *fp;
  	pid_t     pid;
-@@ -2141,6 +2141,8 @@ int my_system(char *command, int timeout, int *early_timeout, char **output)
+@@ -2219,6 +2219,8 @@ int my_system(char *command, int timeout, int *early_timeout, char **output)
  		return STATE_UNKNOWN;
  	}
  
@@ -41,4 +41,4 @@ index 3c25f68..03ffac4 100644
 +
  	/* execute the command in the child process */
  	if (pid == 0) {
- 		SETEUID(0);				/* get root back so the next call works correctly */
+ 
