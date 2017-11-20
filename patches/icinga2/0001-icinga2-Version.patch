@@ -1,0 +1,20 @@
+diff --git a/lib/base/scriptutils.cpp b/lib/base/scriptutils.cpp
+index f71b1b869..289002e52 100644
+--- a/lib/base/scriptutils.cpp
++++ b/lib/base/scriptutils.cpp
+@@ -30,6 +30,7 @@
+ #include "base/application.hpp"
+ #include "base/dependencygraph.hpp"
+ #include "base/initialize.hpp"
++#include "icinga-version.h"
+ #include <boost/regex.hpp>
+ #include <algorithm>
+ #include <set>
+@@ -88,6 +89,7 @@ void ScriptUtils::StaticInitialize(void)
+ 
+ 	ScriptGlobal::Set("GlobFile", GlobFile);
+ 	ScriptGlobal::Set("GlobDirectory", GlobDirectory);
++	ScriptGlobal::Set("Version",VERSION);
+ }
+ 
+ String ScriptUtils::CastString(const Value& value)
