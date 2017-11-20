@@ -1,0 +1,13 @@
+diff --git a/src/nrpe.c b/src/nrpe.c
+index 8e92764..8edd914 100644
+--- a/src/nrpe.c
++++ b/src/nrpe.c
+@@ -686,7 +686,7 @@ void set_stdio_sigs(void)
+ 	if (write_pid_file() == ERROR)	/* write pid file */
+ 		exit(STATE_CRITICAL);
+ 
+-	clean_environ(keep_env_vars, nrpe_user);
++	// clean_environ(keep_env_vars, nrpe_user);
+ 
+ 	/* drop and then check privileges */
+ 	drop_privileges(nrpe_user, nrpe_group, 0);
