@@ -59,6 +59,13 @@ $section->add('Servicegroups', array (
     'priority' => 20
    ));
 
+/**
+  * Add entries if module cube is enabled
+  *
+  */
+
+if ( $this->exists("cube") ){
+
 $section->add('Cube - Types', array (
     'url' => 'cube?dimensions=demomod,data_typeof',
     'icon'=> 'cubes',
@@ -73,26 +80,35 @@ $section->add('Cube - Source - Types', array (
     'priority' => 60
    ));
 
-$section->add('Host map (OSM)', array (
-    'url' => 'map?default_zoom=2&default_lat=22.7559&default_long=42.0117',
-    'icon'=> 'cubes',
-    'title' => 'Map from OpenstreetMap',
-    'priority' => 30
-   ));
-
+}
 
 /**
- * Create entries from a list
- */
-foreach ( array('System','Math','globals','Type','Object','ConfigObject','CustomVarObject','Logger','CheckCommand') as $value) {
-
-$section->add('Type - '.$value.' (NagVis)', array (
-    'url' => 'nagvis/show/map?map=DEMOMOD'.$value,
-    'icon'=> 'cubes',
-    'title' => 'NagVis automap starting with node '.$value,
-    'priority' => 80
-   ));
-
+ * Add entry if the map module exists
+ * /
+if ( $this->exists("map") ) {
+    $section->add('Host map (OSM)', array (
+        'url' => 'map?default_zoom=2&default_lat=22.7559&default_long=42.0117',
+        'icon'=> 'cubes',
+        'title' => 'Map from OpenstreetMap',
+        'priority' => 30
+       ));
 }
 
 
+
+/**
+ * Create entries from a list if nagvis module exist
+ */
+
+if ($this->exists("nagvis") ) {
+    foreach ( array('System','Math','globals','Type','Object','ConfigObject','CustomVarObject','Logger','CheckCommand') as $value) {
+    $section->add('Type - '.$value.' (NagVis)', array (
+        'url' => 'nagvis/show/map?map=DEMOMOD'.$value,
+        'icon'=> 'cubes',
+        'title' => 'NagVis automap starting with node '.$value,
+        'priority' => 80
+       ));
+
+    }
+
+}
