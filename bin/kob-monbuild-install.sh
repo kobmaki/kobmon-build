@@ -198,6 +198,10 @@ aNAGTRAPVERSION=${aSNMPTVERSION-1.5.0}
 aNAGTRAPSRCFILE=${aSRCDIR}/nagtrap-${aNAGTRAPVERSION}.tar.gz
 
 
+# concurrent jobs
+aJobsConcurrent=${aJobsConcurrent-$(lscpu -e |wc -l)}
+
+
 function showHelp {
 echo "### HELP INFO START ${date} ####"
 echo "usage "$0" [-h] [-i] [-e (nagios|icinga|icinga2|mediawiki|livestatus|checkmk|nagtrap|snmptt|fixdirlink)"
@@ -418,7 +422,7 @@ function buildIcinga2 {
     krc_status "... cmake finished" "... cmake error" || return
 
     krc_status "... make start"
-    make -j 4
+    make -j ${aJobsConcurrent}
     krc_status "... make finished" " ... make error" || return
 
     krc_status "... install"
