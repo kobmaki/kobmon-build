@@ -10,7 +10,10 @@ This project is maintained by Uwe Ebel (kobmaki) on [https://github.com/kobmaki/
 ## Helper
 
 * kob-monbuild-install.sh - build/compile
-* kob-icingaweb2-module-create - creating a frame for icingaweb2 module 
+* kob-icingaweb2-module-create - creating a frame for icingaweb2 module
+
+## DemoMod
+A demonstration for icinga2 and icingaweb2 module. [demomod](doc/60-A-demo.md)
 
 ## Functions
 * [conf/icinga2](conf/icinga2) - icinga2 functions, helper
