@@ -24,6 +24,9 @@ Some screenshots with the enabled demomod.
 ### Hostgroup
 ![hostgroups overview, CRITICAL states](images/Hostgroups-Overview-DEMOMOD-Critical.png)
 
+### Servicegroup
+![](images/Servicegroups-DEMOMOD-Mixed.png)
+
 ### Module map if available
 If you have the module map enabled:
 
