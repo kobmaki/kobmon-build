@@ -27,6 +27,10 @@ Some screenshots with the enabled demomod.
 ### Servicegroup
 ![](images/Servicegroups-DEMOMOD-Mixed.png)
 
+### Servicegrid
+![Servicegrid mixed](images/Servicegrid-DEMOMOD-Mixed.png)
+
+![Servicegrid filte on build](images/Servicegrid-DEMOMOD-Build-Mixed.png)
 ### Module map if available
 If you have the module map enabled:
 
@@ -39,12 +43,12 @@ If you have the module map enabled:
 ![Cube data from](images/Cube-demomod-data_from.png)
 
 ![Cube data from and data typeof](images/Cube-data_from-data_typeof.png)
-### Module nagvis if avaible
+### Module nagvis if available
 With the dependency in the nodes you get nice views.
 
 ![NagView for math type](images/NagVis-Type-Math-Critical.png)
 
-### Module businessprocess if availabble
+### Module businessprocess if available
 TODO
 
 ### Module toplevelview if available
