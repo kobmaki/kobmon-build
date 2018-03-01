@@ -31,7 +31,7 @@ To use everything from the demo you have to clone more repos.
 ## Enable the modules in icingaweb2
 Use eighter the webfrontend to enable the modules or run on commandline the following commands
 ```
- icingacli module enable demomap
+ icingacli module enable demomod
  icingacli module enable cube
  icingacli module enable map
  icingacli module enable nagvis
