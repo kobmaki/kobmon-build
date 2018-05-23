@@ -22,7 +22,6 @@ class InfoCommand extends Command
     {
         $this->app->setupZendAutoloader();
         $this->screen=new AnsiScreen();
-
     }
     /**
 * Show environment information

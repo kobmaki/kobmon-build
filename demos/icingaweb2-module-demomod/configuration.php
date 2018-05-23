@@ -64,22 +64,20 @@ $section->add('Servicegroups', array (
   *
   */
 
-if ( $this->exists("cube") ){
-
-$section->add('Cube - Types', array (
+if ($this->exists("cube")) {
+    $section->add('Cube - Types', array (
     'url' => 'cube?dimensions=demomod,data_typeof',
     'icon'=> 'cubes',
     'title' => 'DemoMod Cube Types',
     'priority' => 60
-   )); 
+    ));
 
-$section->add('Cube - Source - Types', array (
+    $section->add('Cube - Source - Types', array (
     'url' => 'cube?dimensions=demomod,data_from,data_typeof',
     'icon'=> 'cubes',
     'title' => 'DemoMod Cube Types and subtype',
     'priority' => 60
-   ));
-
+    ));
 }
 
 /**
@@ -100,15 +98,14 @@ if ( $this->exists("map") ) {
  * Create entries from a list if nagvis module exist
  */
 
-if ($this->exists("nagvis") ) {
-    foreach ( array('System','Math','globals','Type','Object','ConfigObject','CustomVarObject','Logger','CheckCommand') as $value) {
-    $section->add('Type - '.$value.' (NagVis)', array (
+if ($this->exists("nagvis")) {
+    foreach (array('System','Math','globals','Type','Object'
+                   ,'ConfigObject','CustomVarObject','Logger','CheckCommand') as $value) {
+        $section->add('Type - '.$value.' (NagVis)', array (
         'url' => 'nagvis/show/map?map=DEMOMOD'.$value,
         'icon'=> 'cubes',
         'title' => 'NagVis automap starting with node '.$value,
         'priority' => 80
-       ));
-
+        ));
     }
-
 }
