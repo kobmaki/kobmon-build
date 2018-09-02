@@ -18,11 +18,25 @@ $section = $this->menuSection('DemoMod',
            )
     );
 
-$section->add('Help', array(
-    'url' => 'doc/module/toc?moduleName=demomod',
-    'icon' => 'book',
-    'priority' => 99
-));
+/**
+  * Add entries if module doc is enabled
+  *
+  */
+
+if ($this->exists("doc")) {
+      $section->add('Help', array(
+      'url' => 'doc/module/toc?moduleName=demomod',
+      'icon' => 'book',
+      'priority' => 99
+    ));
+}
+
+/**
+  * Add entries if module monitoring is enabled
+  *
+  */
+
+if ($this->exists("monitoring")) {
 
 $section->add('Hostgroup', array (
     'url' => 'monitoring/list/hostgroups?hostgroup_name=DEMOMOD*&sort=hosts_total&dir=desc&limit=500',
@@ -58,6 +72,8 @@ $section->add('Servicegroups', array (
     'label' => 'Servicegroups',
     'priority' => 20
    ));
+
+}
 
 /**
   * Add entries if module cube is enabled
