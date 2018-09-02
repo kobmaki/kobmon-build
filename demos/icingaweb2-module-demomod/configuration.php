@@ -78,6 +78,13 @@ if ($this->exists("cube")) {
     'title' => 'DemoMod Cube Types and subtype',
     'priority' => 60
     ));
+
+    $section->add('Cube - Host parent path', array (
+    'url' => 'cube?dimensions=host_parent_path',
+    'icon'=> 'cubes',
+    'title' => 'DemoMod Cube host parent path',
+    'priority' => 80
+    ));
 }
 
 /**
