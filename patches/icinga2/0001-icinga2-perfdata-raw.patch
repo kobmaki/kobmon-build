@@ -1,5 +1,5 @@
 diff --git a/lib/icinga/checkresult.ti b/lib/icinga/checkresult.ti
-index f95a4ed64..104ff9a05 100644
+index 91fcd894d..234b0b328 100644
 --- a/lib/icinga/checkresult.ti
 +++ b/lib/icinga/checkresult.ti
 @@ -73,6 +73,7 @@ class CheckResult
@@ -11,7 +11,7 @@ index f95a4ed64..104ff9a05 100644
  		default {{{ return true; }}}
  	};
 diff --git a/lib/icinga/externalcommandprocessor.cpp b/lib/icinga/externalcommandprocessor.cpp
-index f117743fa..37775eea7 100644
+index b2d2c3cb2..f3f69be7c 100644
 --- a/lib/icinga/externalcommandprocessor.cpp
 +++ b/lib/icinga/externalcommandprocessor.cpp
 @@ -305,6 +305,7 @@ void ExternalCommandProcessor::ProcessHostCheckResult(double time, const std::ve
@@ -23,7 +23,7 @@ index f117743fa..37775eea7 100644
  	ServiceState state;
  
 diff --git a/lib/icinga/host.cpp b/lib/icinga/host.cpp
-index 89c4131e6..396e8eb30 100644
+index 4f464652e..d8d85612e 100644
 --- a/lib/icinga/host.cpp
 +++ b/lib/icinga/host.cpp
 @@ -327,6 +327,9 @@ bool Host::ResolveMacro(const String& macro, const CheckResult::Ptr&, Value *res
@@ -37,7 +37,7 @@ index 89c4131e6..396e8eb30 100644
  			*result = cr->GetCheckSource();
  			return true;
 diff --git a/lib/icinga/service.cpp b/lib/icinga/service.cpp
-index ffbbedd2d..bd43e4de5 100644
+index ef8a99df9..80019906a 100644
 --- a/lib/icinga/service.cpp
 +++ b/lib/icinga/service.cpp
 @@ -254,6 +254,9 @@ bool Service::ResolveMacro(const String& macro, const CheckResult::Ptr& cr, Valu
@@ -51,10 +51,10 @@ index ffbbedd2d..bd43e4de5 100644
  			*result = cr->GetCheckSource();
  			return true;
 diff --git a/lib/methods/pluginchecktask.cpp b/lib/methods/pluginchecktask.cpp
-index 18928fa20..76c3fce5c 100644
+index 9672d4de0..367d29c1f 100644
 --- a/lib/methods/pluginchecktask.cpp
 +++ b/lib/methods/pluginchecktask.cpp
-@@ -75,6 +75,7 @@ void PluginCheckTask::ProcessFinishedHandler(const Checkable::Ptr& checkable, co
+@@ -83,6 +83,7 @@ void PluginCheckTask::ProcessFinishedHandler(const Checkable::Ptr& checkable, co
  	cr->SetCommand(commandLine);
  	cr->SetOutput(co.first);
  	cr->SetPerformanceData(PluginUtility::SplitPerfdata(co.second));
