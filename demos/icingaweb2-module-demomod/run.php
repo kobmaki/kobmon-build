@@ -10,3 +10,4 @@ use Icinga\Application\Icinga;
 
 // or if you have your own
 // $this->provideHook('DemoMod/');;
+$this->provideHook('monitoring/HostActions');
