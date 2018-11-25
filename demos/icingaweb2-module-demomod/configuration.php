@@ -122,9 +122,9 @@ if ( $this->exists("map") ) {
  */
 
 if ($this->exists("nagvis")) {
-    foreach (array('System','Math','globals','Type','Object'
-                   ,'ConfigObject','CustomVarObject','Logger','CheckCommand') as $value) {
-        $section->add('Type - '.$value.' (NagVis)', array (
+    foreach (array('1child','System','Math','globals','globals1child','Type','Object'
+                   ,'ConfigObject','ConfigObject1child','CustomVarObject','Logger','CheckCommand') as $value) {
+        $section->add('NagVis - '.$value.'', array (
         'url' => 'nagvis/show/map?map=DEMOMOD'.$value,
         'icon'=> 'cubes',
         'title' => 'NagVis automap starting with node '.$value,
